@@ -1,0 +1,8 @@
+vendor
+node_modules
+.env
+storage/*
+!/storage/framework
+!/storage/logs
+npm-debug.log
+.git
