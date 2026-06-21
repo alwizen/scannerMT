@@ -26,14 +26,18 @@ Pastikan Docker dan Docker Compose sudah terpasang.
 cp .env.example .env
 ```
 
-2. Ubah konfigurasi database di `.env` agar memakai MySQL dari Docker Compose:
+2. Pastikan `.env` memiliki `APP_KEY`. Konfigurasi database untuk Docker sudah diatur langsung di `docker-compose.yml`, jadi `.env` lokal boleh tetap memakai SQLite untuk `php artisan serve`.
 
 ```dotenv
 APP_NAME="Scanner MT"
 APP_ENV=local
 APP_DEBUG=true
 APP_URL=http://localhost:8080
+```
 
+Docker Compose akan mengirim environment berikut ke container `app`:
+
+```dotenv
 DB_CONNECTION=mysql
 DB_HOST=db
 DB_PORT=3306
@@ -99,7 +103,8 @@ Volume Docker:
 Entrypoint container aplikasi (`docker/entrypoint.sh`) akan:
 
 - Menjalankan `composer install` jika folder `vendor/` belum ada.
-- Mengatur permission folder `storage` dan `bootstrap/cache`.
+- Membuat folder runtime Laravel yang dibutuhkan.
+- Mengatur permission folder `storage` dan `bootstrap/cache` tanpa mengambil ownership dari host.
 - Menjalankan proses utama `php-fpm`.
 
 Konfigurasi Nginx ada di `docker/nginx/default.conf` dan mengarah ke folder `public/`.

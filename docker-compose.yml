@@ -8,8 +8,21 @@ services:
     volumes:
       - ./:/var/www/html
     environment:
-      - APP_ENV=local
-      - APP_DEBUG=1
+      APP_ENV: local
+      APP_DEBUG: "1"
+      APP_URL: http://localhost:8080
+      DB_CONNECTION: mysql
+      DB_HOST: db
+      DB_PORT: 3306
+      DB_DATABASE: laravel
+      DB_USERNAME: laravel
+      DB_PASSWORD: secret
+      SESSION_DRIVER: database
+      CACHE_STORE: database
+      QUEUE_CONNECTION: database
+    depends_on:
+      db:
+        condition: service_healthy
     networks:
       - appnet
 
@@ -40,6 +53,12 @@ services:
       - db_data:/var/lib/mysql
     ports:
       - "3307:3306"
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost", "-u", "laravel", "-psecret"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 30s
     networks:
       - appnet
 
