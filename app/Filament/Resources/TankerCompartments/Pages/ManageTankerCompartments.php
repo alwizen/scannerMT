@@ -15,13 +15,13 @@ class ManageTankerCompartments extends ManageRecords
     {
         return [
             CreateAction::make()
-                // ->mutateFormDataBeforeCreate(function (array $data): array {
-                //     $data['compartment_no'] = 1;
-                //     return $data;
-                // })
-                // ->after(function (TankerCompartment $record, array $data) {
-                //     TankerCompartmentResource::saveOtherCompartments($record, $data);
-                // }),
+                ->mutateDataUsing(function (array $data): array {
+                    $data['compartment_no'] = 1;
+                    return $data;
+                })
+                ->after(function (TankerCompartment $record, array $data) {
+                    TankerCompartmentResource::saveOtherCompartments($record, $data);
+                }),
         ];
     }
 }

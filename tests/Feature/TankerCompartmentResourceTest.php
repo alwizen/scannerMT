@@ -128,4 +128,52 @@ class TankerCompartmentResourceTest extends TestCase
             'compartment_no' => 3,
         ]);
     }
+
+    public function test_tanker_id_select_query_excludes_tankers_with_existing_compartments(): void
+    {
+        $tankerWithComp = Tanker::create([
+            'nopol' => 'G 1111 AA',
+            'capacity_kl' => 24,
+            'status' => 'available',
+        ]);
+
+        $comp = TankerCompartment::create([
+            'tanker_id' => $tankerWithComp->id,
+            'compartment_no' => 1,
+            'capacity_kl' => 8.00,
+            'rfid_uid' => 'RFID-1-1',
+        ]);
+
+        $tankerWithoutComp = Tanker::create([
+            'nopol' => 'G 2222 BB',
+            'capacity_kl' => 8,
+            'status' => 'available',
+        ]);
+
+        // When creating new record (no $record)
+        $queryForCreate = Tanker::query()->whereDoesntHave('compartments', function ($q) {
+            // no record
+        })->get();
+
+        $this->assertFalse($queryForCreate->contains('id', $tankerWithComp->id));
+        $this->assertTrue($queryForCreate->contains('id', $tankerWithoutComp->id));
+
+        // When editing existing record ($record = $comp)
+        $queryForEdit = Tanker::query()->whereDoesntHave('compartments', function ($q) use ($comp) {
+            if ($comp?->tanker_id) {
+                $q->where('tanker_id', '!=', $comp->tanker_id);
+            }
+        })->get();
+
+        $this->assertTrue($queryForEdit->contains('id', $tankerWithComp->id));
+        $this->assertTrue($queryForEdit->contains('id', $tankerWithoutComp->id));
+    }
+
+    public function test_get_compartment_defaults_returns_correct_breakdown(): void
+    {
+        $this->assertEquals([5], TankerCompartmentResource::getCompartmentDefaults(5));
+        $this->assertEquals([8], TankerCompartmentResource::getCompartmentDefaults(8));
+        $this->assertEquals([8, 8], TankerCompartmentResource::getCompartmentDefaults(16));
+        $this->assertEquals([8, 8, 8], TankerCompartmentResource::getCompartmentDefaults(24));
+    }
 }
