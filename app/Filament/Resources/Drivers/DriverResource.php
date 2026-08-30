@@ -27,12 +27,26 @@ use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use UnitEnum;
 
 class DriverResource extends Resource
 {
     protected static ?string $model = Driver::class;
 
+    protected static string | UnitEnum | null $navigationGroup = 'Master Data';
+
+    protected static ?string $modelLabel = 'AMT';
+
+    protected static ?string $pluralModelLabel = 'AMT';
+
+    protected static ?string $navigationLabel = 'AMT';
+
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedUserGroup;
+
+    public static function getNavigationBadge(): ?string
+    {
+        return static::getModel()::count();
+    }
 
     public static function form(Schema $schema): Schema
     {
@@ -70,7 +84,7 @@ class DriverResource extends Resource
                     ->placeholder('-'),
                 TextEntry::make('deleted_at')
                     ->dateTime()
-                    ->visible(fn (Driver $record): bool => $record->trashed()),
+                    ->visible(fn(Driver $record): bool => $record->trashed()),
             ]);
     }
 

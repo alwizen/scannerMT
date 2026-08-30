@@ -14,6 +14,7 @@ use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Actions\RestoreAction;
 use Filament\Actions\RestoreBulkAction;
 use Filament\Actions\ViewAction;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\TextEntry;
 use Filament\Resources\Resource;
@@ -24,12 +25,26 @@ use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\SoftDeletingScope;
+use UnitEnum;
 
 class TankerResource extends Resource
 {
     protected static ?string $model = Tanker::class;
 
+    protected static ?string $modelLabel = 'Mobil Tangki';
+
+    protected static ?string $pluralModelLabel = 'Mobil Tangki';
+
+    protected static ?string $navigationLabel = 'Mobil Tangki';
+
+    protected static string | UnitEnum | null $navigationGroup = 'Master Data';
+
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedTruck;
+
+    public static function getNavigationBadge(): ?string
+    {
+        return static::getModel()::count();
+    }
 
     public static function form(Schema $schema): Schema
     {
@@ -37,12 +52,22 @@ class TankerResource extends Resource
             ->components([
                 TextInput::make('nopol')
                     ->required(),
-                TextInput::make('capacity_kl')
+                Select::make('capacity_kl')
                     ->required()
-                    ->numeric(),
-                TextInput::make('status')
+                    ->options([
+                        '5' => '5 KL',
+                        '8' => '8 KL',
+                        '16' => '16 KL',
+                        '24' => '16 KL',
+                        '32' => '32 KL'
+                    ]),
+                Select::make('status')
                     ->required()
-                    ->default('available'),
+                    ->options([
+                        'available' => 'available',
+                        'maintenance' => 'maintenance',
+                        'afkir' => 'afkir'
+                    ])
             ]);
     }
 
@@ -62,7 +87,7 @@ class TankerResource extends Resource
                     ->placeholder('-'),
                 TextEntry::make('deleted_at')
                     ->dateTime()
-                    ->visible(fn (Tanker $record): bool => $record->trashed()),
+                    ->visible(fn(Tanker $record): bool => $record->trashed()),
             ]);
     }
 
