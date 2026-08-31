@@ -6,6 +6,7 @@ use App\Http\Requests\DriverLoginRequest;
 use App\Http\Requests\ScanRequest;
 use App\Models\Device;
 use App\Models\Driver;
+use App\Models\ParkingLocation;
 use App\Models\ScanLog;
 use App\Models\TankerCompartment;
 use Illuminate\Support\Facades\DB;
@@ -71,13 +72,26 @@ class TankerScanController extends Controller
             ], 404);
         }
 
-        $scanLog = DB::transaction(function () use ($driver, $device, $compartment, $request) {
+        $matchingLocation = null;
+        $isInsideGeofence = false;
+
+        if ($request->latitude !== null && $request->longitude !== null) {
+            $matchingLocation = ParkingLocation::findMatchingLocation(
+                (float) $request->latitude,
+                (float) $request->longitude
+            );
+            $isInsideGeofence = $matchingLocation !== null;
+        }
+
+        $scanLog = DB::transaction(function () use ($driver, $device, $compartment, $request, $isInsideGeofence, $matchingLocation) {
             return ScanLog::create([
                 'driver_id' => $driver->id,
                 'device_id' => $device->id,
                 'tanker_compartment_id' => $compartment->id,
                 'latitude' => $request->latitude,
                 'longitude' => $request->longitude,
+                'is_inside_geofence' => $isInsideGeofence,
+                'parking_location_id' => $matchingLocation?->id,
                 'scanned_at' => now(),
             ]);
         });
@@ -109,6 +123,14 @@ class TankerScanController extends Controller
                     'compartment_no' => $compartment->compartment_no,
                     'capacity_kl' => $compartment->capacity_kl,
                     'rfid_uid' => $compartment->rfid_uid,
+                ],
+                'geofence' => [
+                    'is_inside' => $isInsideGeofence,
+                    'location_id' => $matchingLocation?->id,
+                    'location_name' => $matchingLocation?->name,
+                    'status_text' => $isInsideGeofence
+                        ? 'Di dalam lokasi parkir MT'
+                        : 'Di luar lokasi parkir MT',
                 ],
             ],
         ]);

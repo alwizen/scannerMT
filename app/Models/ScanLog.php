@@ -17,6 +17,8 @@ class ScanLog extends Model
         'tanker_compartment_id',
         'latitude',
         'longitude',
+        'is_inside_geofence',
+        'parking_location_id',
         'scanned_at',
     ];
 
@@ -26,6 +28,8 @@ class ScanLog extends Model
         'tanker_compartment_id' => 'integer',
         'latitude' => 'decimal:7',
         'longitude' => 'decimal:7',
+        'is_inside_geofence' => 'boolean',
+        'parking_location_id' => 'integer',
         'scanned_at' => 'datetime',
     ];
 
@@ -42,6 +46,11 @@ class ScanLog extends Model
     public function tankerCompartment(): BelongsTo
     {
         return $this->belongsTo(TankerCompartment::class);
+    }
+
+    public function parkingLocation(): BelongsTo
+    {
+        return $this->belongsTo(ParkingLocation::class);
     }
 
     public function getScanStatusAttribute(): string

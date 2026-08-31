@@ -69,6 +69,13 @@ class ScanLogResource extends Resource
                 TextEntry::make('scan_status')
                     ->label('Status Scan')
                     ->formatStateUsing(fn($state) => $state === 'done' ? 'Done' : 'Kurang'),
+                TextEntry::make('is_inside_geofence')
+                    ->label('Geofence Lokasi')
+                    ->badge()
+                    ->formatStateUsing(fn($state, ScanLog $record) => $state
+                        ? 'Di Dalam Area (' . ($record->parkingLocation?->name ?? 'Parkir MT') . ')'
+                        : 'Di Luar Area Parkir')
+                    ->color(fn($state) => $state ? 'success' : 'danger'),
                 TextEntry::make('scanned_at')
                     ->dateTime(),
                 TextEntry::make('created_at')
@@ -81,82 +88,91 @@ class ScanLogResource extends Resource
     }
 
     public static function table(Table $table): Table
-{
-    return $table
-        ->groups([
-            Group::make('tankerCompartment.tanker.nopol')
-                ->label('Nopol MT')
-                ->collapsible(),
-        ])
-        ->defaultGroup('tankerCompartment.tanker.nopol')
-        ->columns([
-            TextColumn::make('driver.name')
-                ->searchable(),
+    {
+        return $table
+            ->groups([
+                Group::make('tankerCompartment.tanker.nopol')
+                    ->label('Nopol MT')
+                    ->collapsible(),
+            ])
+            ->defaultGroup('tankerCompartment.tanker.nopol')
+            ->columns([
+                TextColumn::make('driver.name')
+                    ->searchable(),
 
-            TextColumn::make('device.name')
-                ->searchable(),
+                TextColumn::make('device.name')
+                    ->searchable(),
 
-            TextColumn::make('tankerCompartment.tanker.nopol')
-                ->label('Nopol MT')
-                ->searchable()
-                ->hidden(),
+                TextColumn::make('tankerCompartment.tanker.nopol')
+                    ->label('Nopol MT')
+                    ->searchable()
+                    ->hidden(),
 
-            TextColumn::make('tankerCompartment.compartment_no')
-                ->label('Kompartemen')
-                ->formatStateUsing(fn ($state) => 'Comp ' . $state)
-                ->sortable(),
+                TextColumn::make('tankerCompartment.compartment_no')
+                    ->label('Kompartemen')
+                    ->formatStateUsing(fn($state) => 'Comp ' . $state)
+                    ->sortable(),
 
-            TextColumn::make('latitude')
-                ->numeric()
-                ->sortable(),
+                TextColumn::make('latitude')
+                    ->numeric()
+                    ->sortable(),
 
-            TextColumn::make('longitude')
-                ->numeric()
-                ->sortable(),
+                TextColumn::make('longitude')
+                    ->numeric()
+                    ->sortable(),
 
-            TextColumn::make('scanned_at')
-                ->label('Scanned at')
-                ->dateTime('d M Y H:i:s')
-                ->sortable(),
+                TextColumn::make('scanned_at')
+                    ->label('Scanned at')
+                    ->dateTime('d M Y H:i:s')
+                    ->sortable(),
 
-            TextColumn::make('scan_status')
-                ->label('Status Scan')
-                ->badge()
-                ->formatStateUsing(fn (string $state): string => match ($state) {
-                    'done' => 'Done',
-                    'kurang' => 'Kurang',
-                    default => $state,
-                })
-                ->color(fn (string $state): string => match ($state) {
-                    'done' => 'success',
-                    'kurang' => 'warning',
-                    default => 'gray',
-                }),
+                TextColumn::make('scan_status')
+                    ->label('Status Scan')
+                    ->badge()
+                    ->formatStateUsing(fn(string $state): string => match ($state) {
+                        'done' => 'Done',
+                        'kurang' => 'Kurang',
+                        default => $state,
+                    })
+                    ->color(fn(string $state): string => match ($state) {
+                        'done' => 'success',
+                        'kurang' => 'warning',
+                        default => 'gray',
+                    }),
 
-            TextColumn::make('created_at')
-                ->dateTime()
-                ->sortable()
-                ->toggleable(isToggledHiddenByDefault: true),
+                TextColumn::make('is_inside_geofence')
+                    ->label('Geofence Lokasi')
+                    ->badge()
+                    ->formatStateUsing(fn($state, ScanLog $record) => $state
+                        ? 'Di Dalam (' . ($record->parkingLocation?->name ?? 'Parkir MT') . ')'
+                        : 'Di Luar Area')
+                    ->color(fn($state) => $state ? 'success' : 'danger')
+                    ->sortable(),
 
-            TextColumn::make('updated_at')
-                ->dateTime()
-                ->sortable()
-                ->toggleable(isToggledHiddenByDefault: true),
-        ])
-        ->filters([
-            //
-        ])
-        ->recordActions([
-            ViewAction::make(),
-            EditAction::make(),
-            DeleteAction::make(),
-        ])
-        ->toolbarActions([
-            // BulkActionGroup::make([
-            //     DeleteBulkAction::make(),
-            // ]),
-        ]);
-}
+                TextColumn::make('created_at')
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+
+                TextColumn::make('updated_at')
+                    ->dateTime()
+                    ->sortable()
+                    ->toggleable(isToggledHiddenByDefault: true),
+            ])
+            ->filters([
+                //
+            ])
+            ->recordActions([
+                ViewAction::make(),
+                EditAction::make(),
+                DeleteAction::make(),
+            ])
+            ->toolbarActions([
+                BulkActionGroup::make([
+                    DeleteBulkAction::make(),
+                ]),
+            ]);
+    }
 
     public static function getPages(): array
     {

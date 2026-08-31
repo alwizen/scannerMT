@@ -46,6 +46,13 @@ class ScanMTTable extends TableWidget
                         'kurang' => 'warning',
                         default => 'gray',
                     }),
+                TextColumn::make('is_inside_geofence')
+                    ->label('Geofence Lokasi')
+                    ->badge()
+                    ->formatStateUsing(fn ($state, ScanLog $record) => $state
+                        ? 'Di Dalam (' . ($record->parkingLocation?->name ?? 'Parkir MT') . ')'
+                        : 'Di Luar Area')
+                    ->color(fn ($state) => $state ? 'success' : 'danger'),
                 TextColumn::make('updated_at')
                     ->dateTime()
                     ->label('Terakhir Update'),
