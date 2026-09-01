@@ -28,6 +28,14 @@ class ScanLogResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedClock;
 
+    protected static ?string $slug = 'scan-logs';
+
+    protected static ?string $modelLabel = 'Riwayat Scan';
+
+    protected static ?string $pluralModelLabel = 'Riwayat Scan';
+
+    protected static ?string $navigationLabel = 'Riwayat Scan';
+
     public static function form(Schema $schema): Schema
     {
         return $schema

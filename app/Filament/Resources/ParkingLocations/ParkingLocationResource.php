@@ -9,8 +9,10 @@ use App\Models\ParkingLocation;
 use BackedEnum;
 use EduardoRibeiroDev\FilamentLeaflet\Enums\TileLayer;
 use EduardoRibeiroDev\FilamentLeaflet\Fields\MapPicker;
+use EduardoRibeiroDev\FilamentLeaflet\Layers\Marker;
 use EduardoRibeiroDev\FilamentLeaflet\Layers\Shapes\Circle;
 use EduardoRibeiroDev\FilamentLeaflet\Layers\Shapes\Polygon;
+use EduardoRibeiroDev\FilamentLeaflet\Tables\MapColumn;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
@@ -47,15 +49,15 @@ class ParkingLocationResource extends Resource
 
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedMapPin;
 
-    protected static ?string $navigationLabel = 'Lokasi Parkir MT';
+    protected static ?string $navigationLabel = 'Lokasi FT Tegal';
 
-    protected static ?string $pluralModelLabel = 'Lokasi Parkir MT';
+    protected static ?string $pluralModelLabel = 'Lokasi FT Tegal';
 
     public static function form(Schema $schema): Schema
     {
         return $schema
             ->components([
-                Section::make('Informasi Lokasi Parkir MT')
+                Section::make('Informasi Lokasi MT')
                     ->components([
                         Grid::make(2)
                             ->schema([
@@ -63,9 +65,9 @@ class ParkingLocationResource extends Resource
                                     ->label('Nama Lokasi Parkir')
                                     ->required()
                                     ->maxLength(255),
-                                TextInput::make('code')
-                                    ->label('Kode Lokasi')
-                                    ->maxLength(100),
+                                // TextInput::make('code')
+                                //     ->label('Kode Lokasi')
+                                //     ->maxLength(100),
                                 Select::make('type')
                                     ->label('Tipe Geofence')
                                     ->options([
@@ -79,7 +81,7 @@ class ParkingLocationResource extends Resource
                                     ->label('Radius Geofence (Meter)')
                                     ->numeric()
                                     ->default(100)
-                                    ->visible(fn ($get) => $get('type') === 'radius'),
+                                    ->visible(fn($get) => $get('type') === 'radius'),
                                 TextInput::make('latitude')
                                     ->label('Latitude (Pusat)')
                                     ->numeric()
@@ -115,7 +117,7 @@ class ParkingLocationResource extends Resource
                 TextEntry::make('type')
                     ->label('Tipe Geofence')
                     ->badge()
-                    ->color(fn (string $state): string => match ($state) {
+                    ->color(fn(string $state): string => match ($state) {
                         'polygon' => 'success',
                         'radius' => 'info',
                         default => 'gray',
@@ -126,7 +128,7 @@ class ParkingLocationResource extends Resource
                     ->label('Longitude Pusat'),
                 TextEntry::make('radius_meters')
                     ->label('Radius')
-                    ->formatStateUsing(fn ($state, ParkingLocation $record) => $record->type === 'radius' ? $state . ' meter' : '-'),
+                    ->formatStateUsing(fn($state, ParkingLocation $record) => $record->type === 'radius' ? $state . ' meter' : '-'),
                 IconEntry::make('is_active')
                     ->label('Status Aktif')
                     ->boolean(),
@@ -148,20 +150,20 @@ class ParkingLocationResource extends Resource
                     ->searchable()
                     ->sortable(),
 
-                TextColumn::make('code')
-                    ->label('Kode')
-                    ->searchable()
-                    ->placeholder('-'),
+                // TextColumn::make('code')
+                //     ->label('Kode')
+                //     ->searchable()
+                //     ->placeholder('-'),
 
                 TextColumn::make('type')
                     ->label('Tipe Geofence')
                     ->badge()
-                    ->formatStateUsing(fn (string $state): string => match ($state) {
+                    ->formatStateUsing(fn(string $state): string => match ($state) {
                         'polygon' => 'Polygon',
                         'radius' => 'Radius',
                         default => $state,
                     })
-                    ->color(fn (string $state): string => match ($state) {
+                    ->color(fn(string $state): string => match ($state) {
                         'polygon' => 'success',
                         'radius' => 'info',
                         default => 'gray',
@@ -175,13 +177,19 @@ class ParkingLocationResource extends Resource
                     ->label('Longitude')
                     ->numeric(),
 
-                TextColumn::make('radius_meters')
-                    ->label('Radius (Meter)')
-                    ->formatStateUsing(fn ($state, ParkingLocation $record) => $record->type === 'radius' ? $state . ' m' : '-'),
+                // TextColumn::make('radius_meters')
+                //     ->label('Radius (Meter)')
+                //     ->formatStateUsing(fn($state, ParkingLocation $record) => $record->type === 'radius' ? $state . ' m' : '-'),
 
                 IconColumn::make('is_active')
                     ->label('Aktif')
                     ->boolean(),
+
+                MapColumn::make('Lokasi')
+                    ->height(50)
+                    ->zoom(8)
+                    // ->pickMarker(fn(Marker $marker) => $marker->black())
+                    ->static(),
 
                 TextColumn::make('created_at')
                     ->label('Dibuat Pada')

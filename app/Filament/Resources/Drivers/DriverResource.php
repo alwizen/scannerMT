@@ -14,6 +14,7 @@ use Filament\Actions\ForceDeleteBulkAction;
 use Filament\Actions\RestoreAction;
 use Filament\Actions\RestoreBulkAction;
 use Filament\Actions\ViewAction;
+use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Forms\Components\Toggle;
 use Filament\Infolists\Components\IconEntry;
@@ -53,14 +54,23 @@ class DriverResource extends Resource
         return $schema
             ->components([
                 TextInput::make('driver_no')
+                    ->label('Nomor AMT')
                     ->required(),
                 TextInput::make('name')
+                    ->label('Nama AMT')
                     ->required(),
                 TextInput::make('phone')
-                    ->tel(),
-                TextInput::make('role')
+                    ->label('Nomor Telepon'),
+                Select::make('role')
+                    ->label('Jabatan')
+                    ->options([
+                        'driver' => 'AMT 1',
+                        'helper' => 'AMT 2',
+                    ])
                     ->required(),
                 Toggle::make('is_active')
+                    ->label('Status')
+                    ->default(true)
                     ->required(),
             ]);
     }
@@ -69,8 +79,10 @@ class DriverResource extends Resource
     {
         return $schema
             ->components([
-                TextEntry::make('driver_no'),
-                TextEntry::make('name'),
+                TextEntry::make('driver_no')
+                    ->label('ID AMT'),
+                TextEntry::make('name')
+                    ->label('Nama AMT'),
                 TextEntry::make('phone')
                     ->placeholder('-'),
                 TextEntry::make('role'),
@@ -93,13 +105,23 @@ class DriverResource extends Resource
         return $table
             ->columns([
                 TextColumn::make('driver_no')
+                    ->label('ID AMT')
                     ->searchable(),
                 TextColumn::make('name')
-                    ->searchable(),
+                    ->searchable()
+                    ->label('Nama AMT'),
                 TextColumn::make('phone')
-                    ->searchable(),
+                    ->searchable()
+                    ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('role')
-                    ->searchable(),
+                    ->searchable()
+                    ->label('Jabatan')
+                    ->formatStateUsing(fn($state) => match ($state) {
+                        'driver' => 'AMT 1',
+                        'helper' => 'AMT 2',
+                        default => $state,
+                    }),
+
                 IconColumn::make('is_active')
                     ->boolean(),
                 TextColumn::make('created_at')

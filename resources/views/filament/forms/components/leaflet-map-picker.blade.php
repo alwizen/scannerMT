@@ -11,19 +11,17 @@
         polyState: $wire.entangle('data.polygon_coordinates')
     })"
     x-init="initMap()"
-    style="width: 100%; box-sizing: border-box;"
->
+    style="width: 100%; box-sizing: border-box;">
     <!-- Map Controls / Toolbar -->
     <div style="display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 10px; padding: 10px 14px; background-color: #f8fafc; border: 1px solid #e2e8f0; border-radius: 8px; margin-bottom: 10px;">
         <div style="display: flex; flex-wrap: wrap; align-items: center; gap: 8px;">
             <button
                 type="button"
                 @click="useCurrentLocation()"
-                style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background-color: #2563eb; color: #ffffff; font-size: 12px; font-weight: 600; border-radius: 6px; border: none; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.05);"
-            >
+                style="display: inline-flex; align-items: center; gap: 6px; padding: 6px 12px; background-color: #2563eb; color: #ffffff; font-size: 12px; font-weight: 600; border-radius: 6px; border: none; cursor: pointer; box-shadow: 0 1px 2px rgba(0,0,0,0.05);">
                 <svg width="14" height="14" style="width: 14px; height: 14px; display: inline-block;" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z"/>
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z"/>
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.657 16.657L13.414 20.9a1.998 1.998 0 01-2.827 0l-4.244-4.243a8 8 0 1111.314 0z" />
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 11a3 3 0 11-6 0 3 3 0 016 0z" />
                 </svg>
                 Gunakan Lokasi Saya
             </button>
@@ -33,15 +31,13 @@
                     <button
                         type="button"
                         @click="removeLastPoint()"
-                        style="display: inline-flex; align-items: center; padding: 6px 12px; background-color: #fffbeb; color: #b45309; font-size: 12px; font-weight: 600; border-radius: 6px; border: 1px solid #fde68a; cursor: pointer;"
-                    >
+                        style="display: inline-flex; align-items: center; padding: 6px 12px; background-color: #fffbeb; color: #b45309; font-size: 12px; font-weight: 600; border-radius: 6px; border: 1px solid #fde68a; cursor: pointer;">
                         Hapus Titik Terakhir
                     </button>
                     <button
                         type="button"
                         @click="clearPolygon()"
-                        style="display: inline-flex; align-items: center; padding: 6px 12px; background-color: #fef2f2; color: #dc2626; font-size: 12px; font-weight: 600; border-radius: 6px; border: 1px solid #fecaca; cursor: pointer;"
-                    >
+                        style="display: inline-flex; align-items: center; padding: 6px 12px; background-color: #fef2f2; color: #dc2626; font-size: 12px; font-weight: 600; border-radius: 6px; border: 1px solid #fecaca; cursor: pointer;">
                         Reset Polygon
                     </button>
                     <span style="display: inline-flex; align-items: center; padding: 4px 10px; background-color: #dcfce7; color: #15803d; font-size: 12px; font-weight: 700; border-radius: 12px; border: 1px solid #bbf7d0;">
@@ -58,13 +54,11 @@
                 x-model="searchQuery"
                 @keydown.enter.prevent="searchLocation()"
                 placeholder="Cari lokasi/kota..."
-                style="padding: 6px 12px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 6px; width: 170px; outline: none; background: #ffffff; color: #0f172a;"
-            />
+                style="padding: 6px 12px; font-size: 12px; border: 1px solid #cbd5e1; border-radius: 6px; width: 170px; outline: none; background: #ffffff; color: #0f172a;" />
             <button
                 type="button"
                 @click="searchLocation()"
-                style="padding: 6px 12px; background-color: #475569; color: #ffffff; font-size: 12px; font-weight: 600; border-radius: 6px; border: none; cursor: pointer;"
-            >
+                style="padding: 6px 12px; background-color: #475569; color: #ffffff; font-size: 12px; font-weight: 600; border-radius: 6px; border: none; cursor: pointer;">
                 Cari
             </button>
         </div>
@@ -83,11 +77,10 @@
     <!-- Map Canvas Container -->
     <div
         x-ref="mapContainer"
-        style="height: 420px; min-height: 420px; width: 100%; position: relative; z-index: 1; border-radius: 8px; border: 1px solid #cbd5e1; overflow: hidden; box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.05);"
-    ></div>
+        style="height: 420px; min-height: 420px; width: 100%; position: relative; z-index: 1; border-radius: 8px; border: 1px solid #cbd5e1; overflow: hidden; box-shadow: inset 0 2px 4px 0 rgba(0, 0, 0, 0.05);"></div>
 
     <script>
-        (function () {
+        (function() {
             function registerLeafletPicker() {
                 if (!window.Alpine) return;
                 if (Alpine.data('leafletMapPicker')) return;
@@ -108,8 +101,8 @@
 
                     initMap() {
                         this.ensureLeafletLoaded().then(() => {
-                            const defaultLat = parseFloat(this.latState) || -6.200000;
-                            const defaultLng = parseFloat(this.lngState) || 106.816666;
+                            const defaultLat = parseFloat(this.latState) || -6.870449812666122;
+                            const defaultLng = parseFloat(this.lngState) || 109.18748165392743;
 
                             if (this.map) {
                                 this.map.remove();
@@ -203,7 +196,10 @@
                             this.redrawMap();
                         } else if (this.typeState === 'polygon') {
                             let coords = this.getPolygonCoords();
-                            coords.push({ lat: lat, lng: lng });
+                            coords.push({
+                                lat: lat,
+                                lng: lng
+                            });
                             this.polyState = coords;
 
                             if (!this.latState || !this.lngState || coords.length === 1) {
@@ -236,7 +232,9 @@
 
                         if (this.typeState === 'radius' || !this.typeState) {
                             if (!isNaN(lat) && !isNaN(lng)) {
-                                this.centerMarker = L.marker([lat, lng], { draggable: true }).addTo(this.map);
+                                this.centerMarker = L.marker([lat, lng], {
+                                    draggable: true
+                                }).addTo(this.map);
                                 this.centerMarker.on('dragend', (e) => {
                                     const pos = e.target.getLatLng();
                                     this.latState = parseFloat(pos.lat.toFixed(7));
@@ -269,7 +267,10 @@
 
                                 marker.on('dragend', (e) => {
                                     const pos = e.target.getLatLng();
-                                    let newCoords = [{ lat: parseFloat(pos.lat.toFixed(7)), lng: parseFloat(pos.lng.toFixed(7)) }];
+                                    let newCoords = [{
+                                        lat: parseFloat(pos.lat.toFixed(7)),
+                                        lng: parseFloat(pos.lng.toFixed(7))
+                                    }];
                                     this.polyState = newCoords;
                                     this.latState = newCoords[0].lat;
                                     this.lngState = newCoords[0].lng;

@@ -22,8 +22,11 @@ class ScanMTTable extends TableWidget
             ->paginated([25, 50, 100])
             ->query(fn(): Builder => ScanLog::query())
             ->columns([
-                TextColumn::make('driver.name'),
-                TextColumn::make('device.name'),
+                TextColumn::make('driver.name')
+                    ->label('Nama AMT'),
+                TextColumn::make('device.name')
+                    ->label('Perangkat')
+                    ->badge(),
                 TextColumn::make('tankerCompartment.compartment_no')
                     ->label('Kompartemen')
                     ->formatStateUsing(fn($state) => 'Comp ' . $state),
@@ -49,10 +52,10 @@ class ScanMTTable extends TableWidget
                 TextColumn::make('is_inside_geofence')
                     ->label('Geofence Lokasi')
                     ->badge()
-                    ->formatStateUsing(fn ($state, ScanLog $record) => $state
+                    ->formatStateUsing(fn($state, ScanLog $record) => $state
                         ? 'Di Dalam (' . ($record->parkingLocation?->name ?? 'Parkir MT') . ')'
                         : 'Di Luar Area')
-                    ->color(fn ($state) => $state ? 'success' : 'danger'),
+                    ->color(fn($state) => $state ? 'success' : 'danger'),
                 TextColumn::make('updated_at')
                     ->dateTime()
                     ->label('Terakhir Update'),

@@ -41,8 +41,11 @@ class TankerCompartmentResource extends Resource
     protected static string|BackedEnum|null $navigationIcon = Heroicon::OutlinedQueueList;
 
     protected static ?string $slug = 'tanker-compartments';
+
     protected static ?string $modelLabel = 'MT Compartment';
+
     protected static ?string $pluralModelLabel = 'MT Compartment';
+    
     protected static ?string $navigationLabel = 'MT Compartment';
 
     public static function getCompartmentDefaults(int $totalCapacity): array
