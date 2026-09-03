@@ -11,6 +11,7 @@ use App\Models\ScanLog;
 use App\Models\TankerCompartment;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
+use Illuminate\Http\Request;
 
 class TankerScanController extends Controller
 {
@@ -133,6 +134,58 @@ class TankerScanController extends Controller
                         : 'Di luar lokasi parkir MT',
                 ],
             ],
+        ]);
+    }
+
+    public function scanHistory(Request $request): JsonResponse
+    {
+        $driverId = $request->query('driver_id');
+        if (! $driverId) {
+            return response()->json([
+                'success' => false,
+                'message' => 'driver_id parameter required',
+            ], 400);
+        }
+
+        $logs = ScanLog::with(['tankerCompartment.tanker', 'parkingLocation'])
+            ->where('driver_id', $driverId)
+            ->orderBy('scanned_at', 'desc')
+            ->get();
+
+        $data = $logs->map(function ($log) {
+            $compartment = $log->tankerCompartment;
+            $tanker = $compartment?->tanker;
+
+            return [
+                'scan_log_id' => $log->id,
+                'scanned_at' => $log->scanned_at ? $log->scanned_at->format('Y-m-d H:i:s') : null,
+                'tanker' => $tanker ? [
+                    'id' => $tanker->id,
+                    'nopol' => $tanker->nopol,
+                    'capacity_kl' => $tanker->capacity_kl,
+                ] : null,
+                'compartment' => $compartment ? [
+                    'id' => $compartment->id,
+                    'compartment_no' => $compartment->compartment_no,
+                    'capacity_kl' => $compartment->capacity_kl,
+                    'rfid_uid' => $compartment->rfid_uid,
+                ] : null,
+                'geofence' => [
+                    'is_inside' => (bool) $log->is_inside_geofence,
+                    'location_id' => $log->parking_location_id,
+                    'location_name' => $log->parkingLocation?->name,
+                    'status_text' => $log->is_inside_geofence
+                        ? 'Di dalam lokasi parkir MT'
+                        : 'Di luar lokasi parkir MT',
+                ],
+                'scan_status' => $log->scan_status,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Data riwayat scan berhasil diambil',
+            'data' => $data,
         ]);
     }
 }

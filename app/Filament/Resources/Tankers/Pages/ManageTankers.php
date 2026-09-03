@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Tankers\Pages;
 
 use App\Filament\Resources\Tankers\TankerResource;
 use Filament\Actions\CreateAction;
+use Filament\Notifications\Notification;
 use Filament\Resources\Pages\ManageRecords;
 
 class ManageTankers extends ManageRecords
@@ -13,7 +14,13 @@ class ManageTankers extends ManageRecords
     protected function getHeaderActions(): array
     {
         return [
-            CreateAction::make(),
+            CreateAction::make()
+            ->after(function () {
+                    Notification::make()
+                        ->title('Tanker berhasil ditambahkan')
+                        ->success()
+                        ->sendToDatabase(auth()->user());
+                }),
         ];
     }
 }

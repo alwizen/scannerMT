@@ -26,7 +26,7 @@ class AppServiceProvider extends ServiceProvider
             PanelsRenderHook::AUTH_LOGIN_FORM_AFTER,
             fn (): string => Blade::render('
                 <div style="text-align: center; width: 100%; display: block; margin-top: 1.5rem;" class="text-xs text-gray-400 dark:text-gray-500">
-                    PT. Pertamina Patra Niaga &copy; Copyright 2026
+                    Solu8i Project &copy; Copyright 2026
                 </div>
             '),
         );

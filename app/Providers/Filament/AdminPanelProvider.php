@@ -2,6 +2,8 @@
 
 namespace App\Providers\Filament;
 
+use App\Filament\Widgets\ScanMTTable;
+use App\Filament\Widgets\StatOverview;
 use Filament\Http\Middleware\Authenticate;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
 use Filament\Http\Middleware\AuthenticateSession;
@@ -40,6 +42,7 @@ class AdminPanelProvider extends PanelProvider
             ->favicon(asset('img/fav.svg'))
             ->brandLogoHeight('2.8rem')
             ->darkMode(true)
+            ->databaseNotifications()
             ->colors([
                 'primary' => Color::Default,
             ])
@@ -58,6 +61,8 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([
+                StatOverview::class,
+                ScanMTTable::class,
                 // AccountWidget::class,
                 // FilamentInfoWidget::class,
             ])

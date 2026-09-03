@@ -55,7 +55,7 @@ class ScanLog extends Model
 
     public function getScanStatusAttribute(): string
     {
-        $tanker = $this->tankerCompartment->tanker;
+        $tanker = $this->tankerCompartment?->tanker;
 
         if (! $tanker) {
             return 'kurang';

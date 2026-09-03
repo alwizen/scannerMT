@@ -139,33 +139,50 @@ Buka http://localhost:8080/admin lalu login dengan akun seed. Menu utama yang te
 - Tanker Compartments: mengelola kompartemen, kapasitas, dan UID RFID/NFC.
 - Scan Logs: melihat hasil scan, lokasi, waktu scan, dan status kelengkapan scan.
 
-## API
+## Dokumentasi Akses API
 
-### Login Driver
+### Base URL dan aturan umum
 
-Endpoint:
+Gunakan base URL sesuai cara menjalankan aplikasi:
+
+| Cara menjalankan | Base URL |
+| --- | --- |
+| Docker Compose | `http://localhost:8080/api` |
+| `php artisan serve` | `http://127.0.0.1:8000/api` |
+
+Semua endpoint menerima dan mengembalikan JSON. Tambahkan header berikut pada request:
 
 ```http
-POST /api/driver-login
+Accept: application/json
+Content-Type: application/json
 ```
 
-Payload:
+API saat ini tidak memerlukan token Sanctum atau header `Authorization`. Login driver hanya memvalidasi nomor driver aktif dan mengembalikan identitas driver.
+
+Setelah menjalankan `php artisan migrate --seed`, data contoh yang dapat dipakai adalah:
+
+| Data | Nilai |
+| --- | --- |
+| Nomor driver | `712D1717` |
+| `driver_id` | biasanya `1`, cek ID dari response login |
+| `device_uuid` | `63adafc2f137b5c0` |
+| RFID kompartemen | `NFC-COMP-001`, `NFC-COMP-002`, atau `NFC-COMP-003` |
+
+### 1. Login driver
+
+```http
+POST {{base_url}}/driver-login
+```
+
+Body JSON:
 
 ```json
 {
-  "driver_no": "DRV001"
+  "driver_no": "712D1717"
 }
 ```
 
-Contoh `curl`:
-
-```bash
-curl -X POST http://localhost:8080/api/driver-login \
-  -H "Content-Type: application/json" \
-  -d '{"driver_no":"DRV001"}'
-```
-
-Response sukses:
+Response `200 OK`:
 
 ```json
 {
@@ -173,56 +190,128 @@ Response sukses:
   "message": "Driver ditemukan",
   "data": {
     "id": 1,
-    "driver_no": "DRV001",
-    "name": "Budi Santoso",
+    "driver_no": "712D1717",
+    "name": "Irwan Pras",
     "role": "driver"
   }
 }
 ```
 
-### Simpan Scan RFID/NFC
+Simpan `data.id` dari response untuk dipakai sebagai `driver_id` pada request scan dan riwayat.
 
-Endpoint:
+### 2. Menyimpan scan RFID/NFC
 
 ```http
-POST /api/scan
+POST {{base_url}}/scan
 ```
 
-Payload:
+Body JSON dengan koordinat:
 
 ```json
 {
   "driver_id": 1,
-  "device_uuid": "UNIWA-W999-01",
+  "device_uuid": "63adafc2f137b5c0",
   "rfid_uid": "NFC-COMP-001",
-  "latitude": -6.200000,
-  "longitude": 106.816666
+  "latitude": -6.2000000,
+  "longitude": 106.8166660
 }
 ```
 
-Contoh `curl`:
+`latitude` dan `longitude` boleh dihilangkan bersama-sama. Jika keduanya dikirim, API menentukan apakah titik tersebut berada di lokasi parkir yang terdaftar.
 
-```bash
-curl -X POST http://localhost:8080/api/scan \
-  -H "Content-Type: application/json" \
-  -d '{
-    "driver_id": 1,
-    "device_uuid": "UNIWA-W999-01",
-    "rfid_uid": "NFC-COMP-001",
-    "latitude": -6.2,
-    "longitude": 106.816666
-  }'
+Response `200 OK` memiliki bentuk berikut:
+
+```json
+{
+  "success": true,
+  "message": "Scan berhasil disimpan",
+  "data": {
+    "scan_log_id": 1,
+    "scanned_at": "2026-09-03 10:00:00",
+    "driver": {},
+    "device": {},
+    "tanker": {},
+    "compartment": {},
+    "geofence": {
+      "is_inside": false,
+      "location_id": null,
+      "location_name": null,
+      "status_text": "Di luar lokasi parkir MT"
+    }
+  }
+}
 ```
 
-Response sukses berisi data driver, device, mobil tangki, kompartemen, dan `scan_log_id`.
+`driver_id`, `device_uuid`, dan `rfid_uid` wajib dikirim. Driver serta device juga harus aktif. Koordinat bersifat opsional; `latitude` harus berada di antara `-90` dan `90`, sedangkan `longitude` di antara `-180` dan `180`.
 
-Validasi penting:
+### 3. Mengambil riwayat scan
 
-- `driver_id` wajib ada dan driver harus aktif.
-- `device_uuid` wajib ada dan device harus aktif.
-- `rfid_uid` harus terdaftar pada data kompartemen.
-- `latitude` opsional, rentang `-90` sampai `90`.
-- `longitude` opsional, rentang `-180` sampai `180`.
+Route utama:
+
+```http
+GET {{base_url}}/scan-history?driver_id=1
+```
+
+Alias yang juga tersedia: `GET {{base_url}}/scan_history?driver_id=1`.
+
+Response `200 OK` mengembalikan array `data`, diurutkan dari scan terbaru:
+
+```json
+{
+  "success": true,
+  "message": "Data riwayat scan berhasil diambil",
+  "data": [
+    {
+      "scan_log_id": 1,
+      "scanned_at": "2026-09-03 10:00:00",
+      "tanker": {},
+      "compartment": {},
+      "geofence": {},
+      "scan_status": "kurang"
+    }
+  ]
+}
+```
+
+### Status error
+
+| HTTP | Kondisi |
+| --- | --- |
+| `400` | `driver_id` tidak dikirim pada endpoint history |
+| `404` | Driver tidak ditemukan/tidak aktif, device tidak ditemukan/tidak aktif, atau RFID tidak ditemukan |
+| `422` | Payload tidak lolos validasi, misalnya field wajib kosong atau koordinat di luar rentang |
+
+Response error umumnya memiliki `success: false` dan `message`. Error validasi Laravel juga menyertakan object `errors`.
+
+## Menjalankan API di Postman
+
+1. Jalankan aplikasi dengan Docker atau `php artisan serve`.
+2. Buat environment baru, lalu isi variable `base_url` dengan `http://localhost:8080/api` untuk Docker atau `http://127.0.0.1:8000/api` untuk server lokal.
+3. Buat request `POST {{base_url}}/driver-login`, pilih **Body > raw > JSON**, masukkan body login, lalu klik **Send**.
+4. Catat nilai `data.id` dari response login.
+5. Buat request `POST {{base_url}}/scan` dengan header JSON dan body scan. Ganti `driver_id` memakai ID dari langkah sebelumnya.
+6. Buat request `GET {{base_url}}/scan-history?driver_id=1`, lalu klik **Send** untuk melihat riwayat.
+
+Alternatif cepat tanpa environment: ganti `{{base_url}}` langsung dengan `http://localhost:8080/api` atau `http://127.0.0.1:8000/api`.
+
+## Menjalankan API di Insomnia
+
+1. Jalankan aplikasi dan buat **Collection** baru.
+2. Tambahkan environment variable berikut:
+
+```json
+{
+  "base_url": "http://localhost:8080/api"
+}
+```
+
+Gunakan `http://127.0.0.1:8000/api` jika memakai `php artisan serve`.
+3. Buat request login dengan method `POST` ke `{{ base_url }}/driver-login`, lalu pilih **Body > JSON**.
+4. Tambahkan request scan dengan method `POST` ke `{{ base_url }}/scan` dan body JSON scan.
+5. Tambahkan request history dengan method `GET` ke `{{ base_url }}/scan-history?driver_id=1`.
+6. Jalankan request login terlebih dahulu, kemudian scan, lalu history.
+
+Pada Postman maupun Insomnia, endpoint API tidak memakai trailing slash dan tidak membutuhkan token login.
 
 ## Command Harian
 

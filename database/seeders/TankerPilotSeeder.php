@@ -19,8 +19,8 @@ class TankerPilotSeeder extends Seeder
     public function run(): void
     {
         Driver::create([
-            'driver_no' => 'DRV001',
-            'name' => 'Budi Santoso',
+            'driver_no' => '712D1717',
+            'name' => 'Irwan Pras',
             'phone' => null,
             'role' => 'driver',
             'is_active' => true,
@@ -35,7 +35,7 @@ class TankerPilotSeeder extends Seeder
         ]);
 
         Device::create([
-            'device_uuid' => 'UNIWA-W999-01',
+            'device_uuid' => '63adafc2f137b5c0',
             'name' => 'UNIWA W999 Pilot',
             'is_active' => true,
         ]);
