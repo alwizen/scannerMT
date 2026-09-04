@@ -4,7 +4,7 @@ namespace App\Http\Requests;
 
 use Illuminate\Foundation\Http\FormRequest;
 
-class ScanRequest extends FormRequest
+class StartScanSessionRequest extends FormRequest
 {
     public function authorize(): bool
     {
@@ -14,12 +14,9 @@ class ScanRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'scan_session_id' => ['required', 'integer', 'exists:scan_sessions,id'],
             'driver_id' => ['required', 'integer', 'exists:drivers,id'],
             'device_uuid' => ['required', 'string', 'exists:devices,device_uuid'],
-            'rfid_uid' => ['required', 'string'],
-            'latitude' => ['nullable', 'numeric', 'between:-90,90'],
-            'longitude' => ['nullable', 'numeric', 'between:-180,180'],
+            'tanker_id' => ['required', 'integer', 'exists:tankers,id'],
         ];
     }
 }

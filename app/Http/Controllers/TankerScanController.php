@@ -4,10 +4,13 @@ namespace App\Http\Controllers;
 
 use App\Http\Requests\DriverLoginRequest;
 use App\Http\Requests\ScanRequest;
+use App\Http\Requests\StartScanSessionRequest;
 use App\Models\Device;
 use App\Models\Driver;
 use App\Models\ParkingLocation;
 use App\Models\ScanLog;
+use App\Models\ScanSession;
+use App\Models\Tanker;
 use App\Models\TankerCompartment;
 use App\Models\User;
 use Filament\Notifications\Notification;
@@ -17,6 +20,62 @@ use Illuminate\Http\Request;
 
 class TankerScanController extends Controller
 {
+    public function availableTankers(): JsonResponse
+    {
+        $tankers = Tanker::query()
+            ->where('status', 'available')
+            ->withCount('compartments')
+            ->orderBy('nopol')
+            ->get(['id', 'nopol', 'capacity_kl']);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Daftar tanker tersedia berhasil diambil',
+            'data' => $tankers,
+        ]);
+    }
+
+    public function startScanSession(StartScanSessionRequest $request): JsonResponse
+    {
+        $driver = Driver::whereKey($request->driver_id)
+            ->where('is_active', true)
+            ->first();
+        $device = Device::where('device_uuid', $request->device_uuid)
+            ->where('is_active', true)
+            ->first();
+        $tanker = Tanker::whereKey($request->tanker_id)
+            ->where('status', 'available')
+            ->first();
+
+        if (! $driver || ! $device || ! $tanker) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Driver, device, atau tanker tidak tersedia',
+            ], 422);
+        }
+
+        $session = ScanSession::create([
+            'driver_id' => $driver->id,
+            'device_id' => $device->id,
+            'tanker_id' => $tanker->id,
+            'status' => 'in_progress',
+            'started_at' => now(),
+        ]);
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Sesi scan berhasil dibuat',
+            'data' => [
+                'scan_session_id' => $session->id,
+                'driver_id' => $session->driver_id,
+                'device_id' => $session->device_id,
+                'tanker_id' => $session->tanker_id,
+                'status' => $session->status,
+                'started_at' => $session->started_at->format('Y-m-d H:i:s'),
+            ],
+        ], 201);
+    }
+
     public function driverLogin(DriverLoginRequest $request): JsonResponse
     {
         $driver = Driver::where('driver_no', $request->driver_no)
@@ -75,6 +134,27 @@ class TankerScanController extends Controller
             ], 404);
         }
 
+        if ($compartment->tanker?->status !== 'available') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tanker tidak tersedia untuk scan',
+            ], 422);
+        }
+
+        $session = ScanSession::whereKey($request->scan_session_id)
+            ->where('driver_id', $driver->id)
+            ->where('device_id', $device->id)
+            ->where('tanker_id', $compartment->tanker_id)
+            ->where('status', 'in_progress')
+            ->first();
+
+        if (! $session) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Sesi scan tidak valid atau sudah selesai',
+            ], 422);
+        }
+
         $matchingLocation = null;
         $isInsideGeofence = false;
 
@@ -86,8 +166,15 @@ class TankerScanController extends Controller
             $isInsideGeofence = $matchingLocation !== null;
         }
 
-        $scanLog = DB::transaction(function () use ($driver, $device, $compartment, $request, $isInsideGeofence, $matchingLocation) {
-            return ScanLog::create([
+        $scanLog = DB::transaction(function () use ($session, $driver, $device, $compartment, $request, $isInsideGeofence, $matchingLocation) {
+            if (ScanLog::where('scan_session_id', $session->id)
+                ->where('tanker_compartment_id', $compartment->id)
+                ->exists()) {
+                abort(409, 'Kompartemen sudah discan dalam sesi ini');
+            }
+
+            $scanLog = ScanLog::create([
+                'scan_session_id' => $session->id,
                 'driver_id' => $driver->id,
                 'device_id' => $device->id,
                 'tanker_compartment_id' => $compartment->id,
@@ -97,6 +184,20 @@ class TankerScanController extends Controller
                 'parking_location_id' => $matchingLocation?->id,
                 'scanned_at' => now(),
             ]);
+
+            $compartmentCount = $session->tanker->compartments()->count();
+            $scannedCount = ScanLog::where('scan_session_id', $session->id)
+                ->distinct()
+                ->count('tanker_compartment_id');
+
+            if ($compartmentCount > 0 && $scannedCount >= $compartmentCount) {
+                $session->update([
+                    'status' => 'completed',
+                    'completed_at' => now(),
+                ]);
+            }
+
+            return $scanLog;
         });
 
         $tanker = $compartment->tanker;
@@ -163,12 +264,14 @@ class TankerScanController extends Controller
             ], 400);
         }
 
+        $perPage = max(1, min((int) $request->query('per_page', 15), 100));
+
         $logs = ScanLog::with(['tankerCompartment.tanker', 'parkingLocation'])
             ->where('driver_id', $driverId)
             ->orderBy('scanned_at', 'desc')
-            ->get();
+            ->paginate($perPage);
 
-        $data = $logs->map(function ($log) {
+        $data = $logs->getCollection()->map(function ($log) {
             $compartment = $log->tankerCompartment;
             $tanker = $compartment?->tanker;
 
@@ -201,7 +304,13 @@ class TankerScanController extends Controller
         return response()->json([
             'success' => true,
             'message' => 'Data riwayat scan berhasil diambil',
-            'data' => $data,
+            'data' => $data->values(),
+            'meta' => [
+                'current_page' => $logs->currentPage(),
+                'last_page' => $logs->lastPage(),
+                'per_page' => $logs->perPage(),
+                'total' => $logs->total(),
+            ],
         ]);
     }
 }

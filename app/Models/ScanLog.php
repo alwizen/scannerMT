@@ -12,6 +12,7 @@ class ScanLog extends Model
     ];
 
     protected $fillable = [
+        'scan_session_id',
         'driver_id',
         'device_id',
         'tanker_compartment_id',
@@ -23,6 +24,7 @@ class ScanLog extends Model
     ];
 
     protected $casts = [
+        'scan_session_id' => 'integer',
         'driver_id' => 'integer',
         'device_id' => 'integer',
         'tanker_compartment_id' => 'integer',
@@ -36,6 +38,11 @@ class ScanLog extends Model
     public function driver(): BelongsTo
     {
         return $this->belongsTo(Driver::class);
+    }
+
+    public function scanSession(): BelongsTo
+    {
+        return $this->belongsTo(ScanSession::class);
     }
 
     public function device(): BelongsTo
@@ -55,7 +62,8 @@ class ScanLog extends Model
 
     public function getScanStatusAttribute(): string
     {
-        $tanker = $this->tankerCompartment?->tanker;
+        $session = $this->scanSession;
+        $tanker = $session?->tanker ?? $this->tankerCompartment?->tanker;
 
         if (! $tanker) {
             return 'kurang';
@@ -67,7 +75,8 @@ class ScanLog extends Model
             return 'kurang';
         }
 
-        $scannedCount = self::whereIn('tanker_compartment_id', $compartmentIds)
+        $scannedCount = self::where('scan_session_id', $this->scan_session_id)
+            ->whereIn('tanker_compartment_id', $compartmentIds)
             ->distinct()
             ->count('tanker_compartment_id');
 

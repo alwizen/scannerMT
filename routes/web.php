@@ -6,4 +6,5 @@ use Illuminate\Support\Facades\Route;
 Route::redirect('/', '/admin');
 
 Route::get('/tanker-compartments/{compartment}/qr-code/download', [TankerCompartmentQrController::class, 'download'])
+    ->middleware('auth')
     ->name('tanker-compartment.qr-code.download');

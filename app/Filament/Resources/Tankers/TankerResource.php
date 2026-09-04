@@ -58,7 +58,7 @@ class TankerResource extends Resource
                         '5' => '5 KL',
                         '8' => '8 KL',
                         '16' => '16 KL',
-                        '24' => '16 KL',
+                        '24' => '24 KL',
                         '32' => '32 KL'
                     ]),
                 Select::make('status')

@@ -5,7 +5,7 @@ Scanner MT adalah aplikasi Laravel untuk pencatatan scan RFID/NFC kompartemen mo
 - Admin panel Filament untuk mengelola driver, device scanner, mobil tangki, kompartemen, dan log scan.
 - API login driver berdasarkan nomor driver.
 - API scan RFID/NFC yang menyimpan driver, device, kompartemen, koordinat, dan waktu scan.
-- Status scan per mobil tangki: `done` jika semua kompartemen sudah pernah discan, `kurang` jika belum lengkap.
+- Status scan per sesi tanker: `done` jika semua kompartemen dalam sesi tersebut sudah discan, `kurang` jika belum lengkap.
 
 ## Stack
 
@@ -157,7 +157,7 @@ Accept: application/json
 Content-Type: application/json
 ```
 
-API saat ini tidak memerlukan token Sanctum atau header `Authorization`. Login driver hanya memvalidasi nomor driver aktif dan mengembalikan identitas driver.
+API saat ini tidak memerlukan token Sanctum atau header `Authorization`. Login driver memvalidasi nomor driver aktif dan mengembalikan identitas driver. Sesi scan harus dibuat setelah login dan sebelum mengirim scan.
 
 Setelah menjalankan `php artisan migrate --seed`, data contoh yang dapat dipakai adalah:
 
@@ -197,9 +197,52 @@ Response `200 OK`:
 }
 ```
 
-Simpan `data.id` dari response untuk dipakai sebagai `driver_id` pada request scan dan riwayat.
+Simpan `data.id` dari response untuk dipakai sebagai `driver_id` pada request berikutnya.
 
-### 2. Menyimpan scan RFID/NFC
+### 2. Mengambil tanker tersedia
+
+```http
+GET {{base_url}}/tankers/available
+```
+
+Endpoint ini hanya mengembalikan tanker dengan status `available`. Pilih `data.id` dari salah satu tanker untuk membuat sesi.
+
+### 3. Membuat sesi scan
+
+```http
+POST {{base_url}}/scan-sessions
+```
+
+Body JSON:
+
+```json
+{
+  "driver_id": 1,
+  "device_uuid": "63adafc2f137b5c0",
+  "tanker_id": 1
+}
+```
+
+Response `201 Created`:
+
+```json
+{
+  "success": true,
+  "message": "Sesi scan berhasil dibuat",
+  "data": {
+    "scan_session_id": 1,
+    "driver_id": 1,
+    "device_id": 1,
+    "tanker_id": 1,
+    "status": "in_progress",
+    "started_at": "2026-09-04 10:00:00"
+  }
+}
+```
+
+Simpan `data.scan_session_id`. Sesi mengikat driver, device, dan tanker. Sesi hanya dapat digunakan ketika statusnya `in_progress`.
+
+### 4. Menyimpan scan RFID/NFC
 
 ```http
 POST {{base_url}}/scan
@@ -209,6 +252,7 @@ Body JSON dengan koordinat:
 
 ```json
 {
+  "scan_session_id": 1,
   "driver_id": 1,
   "device_uuid": "63adafc2f137b5c0",
   "rfid_uid": "NFC-COMP-001",
@@ -242,19 +286,19 @@ Response `200 OK` memiliki bentuk berikut:
 }
 ```
 
-`driver_id`, `device_uuid`, dan `rfid_uid` wajib dikirim. Driver serta device juga harus aktif. Koordinat bersifat opsional; `latitude` harus berada di antara `-90` dan `90`, sedangkan `longitude` di antara `-180` dan `180`.
+`scan_session_id`, `driver_id`, `device_uuid`, dan `rfid_uid` wajib dikirim. Driver, device, serta tanker sesi harus aktif/tersedia dan harus saling cocok dengan sesi. Kompartemen yang sama tidak dapat discan dua kali dalam satu sesi. Setelah semua kompartemen tanker discan, status sesi menjadi `completed`. Koordinat bersifat opsional; `latitude` harus berada di antara `-90` dan `90`, sedangkan `longitude` di antara `-180` dan `180`.
 
-### 3. Mengambil riwayat scan
+### 5. Mengambil riwayat scan
 
 Route utama:
 
 ```http
-GET {{base_url}}/scan-history?driver_id=1
+GET {{base_url}}/scan-history?driver_id=1&page=1&per_page=15
 ```
 
 Alias yang juga tersedia: `GET {{base_url}}/scan_history?driver_id=1`.
 
-Response `200 OK` mengembalikan array `data`, diurutkan dari scan terbaru:
+Response `200 OK` mengembalikan data per halaman, diurutkan dari scan terbaru. `per_page` default `15` dan dibatasi maksimum `100`:
 
 ```json
 {
@@ -269,7 +313,13 @@ Response `200 OK` mengembalikan array `data`, diurutkan dari scan terbaru:
       "geofence": {},
       "scan_status": "kurang"
     }
-  ]
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 15,
+    "total": 1
+  }
 }
 ```
 
@@ -279,7 +329,8 @@ Response `200 OK` mengembalikan array `data`, diurutkan dari scan terbaru:
 | --- | --- |
 | `400` | `driver_id` tidak dikirim pada endpoint history |
 | `404` | Driver tidak ditemukan/tidak aktif, device tidak ditemukan/tidak aktif, atau RFID tidak ditemukan |
-| `422` | Payload tidak lolos validasi, misalnya field wajib kosong atau koordinat di luar rentang |
+| `409` | Kompartemen sudah discan dalam sesi yang sama |
+| `422` | Payload tidak lolos validasi, sesi tidak valid, tanker tidak tersedia, atau koordinat di luar rentang |
 
 Response error umumnya memiliki `success: false` dan `message`. Error validasi Laravel juga menyertakan object `errors`.
 
@@ -289,8 +340,10 @@ Response error umumnya memiliki `success: false` dan `message`. Error validasi L
 2. Buat environment baru, lalu isi variable `base_url` dengan `http://localhost:8080/api` untuk Docker atau `http://127.0.0.1:8000/api` untuk server lokal.
 3. Buat request `POST {{base_url}}/driver-login`, pilih **Body > raw > JSON**, masukkan body login, lalu klik **Send**.
 4. Catat nilai `data.id` dari response login.
-5. Buat request `POST {{base_url}}/scan` dengan header JSON dan body scan. Ganti `driver_id` memakai ID dari langkah sebelumnya.
-6. Buat request `GET {{base_url}}/scan-history?driver_id=1`, lalu klik **Send** untuk melihat riwayat.
+5. Buat request `GET {{base_url}}/tankers/available`, lalu pilih `data.id` tanker.
+6. Buat request `POST {{base_url}}/scan-sessions` dan catat `data.scan_session_id`.
+7. Buat request `POST {{base_url}}/scan` dengan `scan_session_id` tersebut dan body scan.
+8. Buat request `GET {{base_url}}/scan-history?driver_id=1&page=1&per_page=15` untuk melihat riwayat.
 
 Alternatif cepat tanpa environment: ganti `{{base_url}}` langsung dengan `http://localhost:8080/api` atau `http://127.0.0.1:8000/api`.
 

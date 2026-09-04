@@ -4,6 +4,7 @@ namespace Tests\Feature;
 
 use App\Models\Tanker;
 use App\Models\TankerCompartment;
+use App\Models\User;
 use Illuminate\Foundation\Testing\RefreshDatabase;
 use Tests\TestCase;
 
@@ -43,6 +44,8 @@ class TankerCompartmentQrCodeTest extends TestCase
 
     public function test_can_download_qr_code_as_png_and_svg(): void
     {
+        $this->actingAs(User::factory()->create());
+
         $tanker = Tanker::create([
             'nopol' => 'G 9999 QR',
             'capacity_kl' => 16,
@@ -78,5 +81,25 @@ class TankerCompartmentQrCodeTest extends TestCase
         $responseSvg->assertHeader('Content-Type', 'image/svg+xml');
         $responseSvg->assertHeader('Content-Disposition', 'attachment; filename="QR_G_9999_QR_Comp1.svg"');
         $this->assertStringContainsString('<svg', $responseSvg->getContent());
+    }
+
+    public function test_guest_cannot_download_qr_code(): void
+    {
+        $tanker = Tanker::create([
+            'nopol' => 'G 7777 QR',
+            'capacity_kl' => 16,
+            'status' => 'available',
+        ]);
+
+        $compartment = TankerCompartment::create([
+            'tanker_id' => $tanker->id,
+            'compartment_no' => 1,
+            'type' => 'qrcode',
+            'capacity_kl' => 8.00,
+            'rfid_uid' => 'QR-C1-GUEST',
+        ]);
+
+        $this->get(route('tanker-compartment.qr-code.download', $compartment))
+            ->assertRedirect('/admin/login');
     }
 }
