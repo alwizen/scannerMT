@@ -9,6 +9,8 @@ use App\Models\Driver;
 use App\Models\ParkingLocation;
 use App\Models\ScanLog;
 use App\Models\TankerCompartment;
+use App\Models\User;
+use Filament\Notifications\Notification;
 use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -96,6 +98,20 @@ class TankerScanController extends Controller
                 'scanned_at' => now(),
             ]);
         });
+
+        $tanker = $compartment->tanker;
+        $notification = Notification::make()
+            ->title('Scan baru berhasil')
+            ->body(sprintf(
+                '%s melakukan scan MT %s, Kompartemen %s. %s',
+                $driver->name,
+                $tanker->nopol,
+                $compartment->compartment_no,
+                $isInsideGeofence ? 'Di dalam lokasi parkir.' : 'Di luar lokasi parkir.'
+            ))
+            ->status($isInsideGeofence ? 'success' : 'warning');
+
+        User::query()->each(fn (User $user) => $notification->sendToDatabase($user));
 
         return response()->json([
             'success' => true,

@@ -27,8 +27,8 @@ class TankerPilotSeeder extends Seeder
         ]);
 
         Driver::create([
-            'driver_no' => 'DRV002',
-            'name' => 'Joko Prasetyo',
+            'driver_no' => '73F8DA2C',
+            'name' => 'Agus Gunawan',
             'phone' => null,
             'role' => 'helper',
             'is_active' => true,

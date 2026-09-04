@@ -6,6 +6,7 @@ use App\Models\ScanLog;
 use App\Models\TankerCompartment;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
+use Filament\Widgets\Concerns\InteractsWithPageFilters;
 use Filament\Widgets\TableWidget;
 use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Support\Carbon;
@@ -13,6 +14,8 @@ use Illuminate\Support\Facades\DB;
 
 class ScanMTTable extends TableWidget
 {
+    use InteractsWithPageFilters;
+
     protected static ?string $heading = 'Realtime Monitoring Pretrip Mainhole';
 
     protected int | string | array $columnSpan = 'full';
@@ -46,8 +49,8 @@ class ScanMTTable extends TableWidget
             TextColumn::make('driver.name')
                 ->label('Nama AMT')
                 ->description(fn (ScanLog $record): string => match ($record->driver?->role) {
-                    'driver' => 'Driver',
-                    'helper' => 'Helper',
+                    'driver' => 'AMT 1',
+                    'helper' => 'AMT 2',
                     default => '-',
                 })
                 ->sortable()
@@ -136,7 +139,11 @@ class ScanMTTable extends TableWidget
             ->poll('3s')
             ->paginated([25, 50, 100])
             ->query(function (): Builder {
+                [$startDate, $endDate] = $this->getFilterDateRange();
+
                 return ScanLog::query()
+                    ->when($startDate, fn (Builder $query) => $query->where('scan_logs.scanned_at', '>=', $startDate))
+                    ->when($endDate, fn (Builder $query) => $query->where('scan_logs.scanned_at', '<=', $endDate))
                     ->join('tanker_compartments', 'scan_logs.tanker_compartment_id', '=', 'tanker_compartments.id')
                     ->join('tankers', 'tanker_compartments.tanker_id', '=', 'tankers.id')
                     ->select([
@@ -163,5 +170,22 @@ class ScanMTTable extends TableWidget
                     ->orderByDesc('last_update');
             })
             ->columns($columns);
+    }
+
+    private function getFilterDateRange(): array
+    {
+        $period = $this->pageFilters['period'] ?? 'today';
+        $now = Carbon::now();
+
+        return match ($period) {
+            'yesterday' => [$now->copy()->subDay()->startOfDay(), $now->copy()->subDay()->endOfDay()],
+            '7_days' => [$now->copy()->subDays(6)->startOfDay(), $now->copy()->endOfDay()],
+            '1_month' => [$now->copy()->subMonth()->startOfDay(), $now->copy()->endOfDay()],
+            'custom' => [
+                ! empty($this->pageFilters['startDate']) ? Carbon::parse($this->pageFilters['startDate'])->startOfDay() : null,
+                ! empty($this->pageFilters['endDate']) ? Carbon::parse($this->pageFilters['endDate'])->endOfDay() : null,
+            ],
+            default => [$now->copy()->startOfDay(), $now->copy()->endOfDay()],
+        };
     }
 }
