@@ -39,10 +39,10 @@ class AdminPanelProvider extends PanelProvider
             ->path('admin')
             ->login()
             ->spa()
-            // ->brandLogo(asset('img/logo_1.png'))
-            ->brandname('Risnaiyah APP')
+            ->brandLogo(asset('img/cek.png'))
+            // ->brandname('Cek Disit')
             ->favicon(asset('img/fav.svg'))
-            ->brandLogoHeight('2.8rem')
+            ->brandLogoHeight('4.8rem')
             ->darkMode(true)
             ->databaseNotifications()
             ->colors([
