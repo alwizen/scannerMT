@@ -40,6 +40,12 @@ class TankerPilotSeeder extends Seeder
             'is_active' => true,
         ]);
 
+        Device::create([
+            'device_uuid' => '1885cf5b4989693',
+            'name' => 'Oppo',
+            'is_active' => true,
+        ]);
+
         $tanker = Tanker::create([
             'nopol' => 'G 8123 XX',
             'capacity_kl' => 24,

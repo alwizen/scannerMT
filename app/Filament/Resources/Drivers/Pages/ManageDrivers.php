@@ -4,6 +4,7 @@ namespace App\Filament\Resources\Drivers\Pages;
 
 use App\Filament\Resources\Drivers\DriverResource;
 use Filament\Actions\CreateAction;
+use Filament\Actions\ImportAction;
 use Filament\Resources\Pages\ManageRecords;
 
 class ManageDrivers extends ManageRecords
@@ -14,6 +15,9 @@ class ManageDrivers extends ManageRecords
     {
         return [
             CreateAction::make(),
+            ImportAction::make()
+                ->importer(\App\Filament\Imports\DriverImporter::class)
+                ->label('Import AMT'),
         ];
     }
 }
