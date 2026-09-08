@@ -64,6 +64,9 @@ class TankerCompartmentResource extends Resource
         return $schema
             ->components([
                 Select::make('tanker_id')
+                    ->label('Pilih MT')
+                    ->searchable()
+                    ->preload()
                     ->relationship(
                         name: 'tanker',
                         titleAttribute: 'nopol',

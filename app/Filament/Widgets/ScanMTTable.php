@@ -26,13 +26,22 @@ class ScanMTTable extends TableWidget
 
     protected function getScansForRecord(ScanLog $record)
     {
-        $key = "{$record->driver_id}_{$record->tanker_id}_{$record->scan_date}";
+        $sessionKey = $record->scan_session_id ?? 'legacy';
+        $key = "{$record->driver_id}_{$record->tanker_id}_{$record->scan_date}_{$sessionKey}";
 
         if (! isset(static::$scansCache[$key])) {
-            static::$scansCache[$key] = ScanLog::query()
+            $query = ScanLog::query()
                 ->where('driver_id', $record->driver_id)
                 ->whereDate('scanned_at', $record->scan_date)
-                ->whereHas('tankerCompartment', fn ($q) => $q->where('tanker_id', $record->tanker_id))
+                ->whereHas('tankerCompartment', fn ($q) => $q->where('tanker_id', $record->tanker_id));
+
+            if ($record->scan_session_id) {
+                $query->where('scan_session_id', $record->scan_session_id);
+            } else {
+                $query->whereNull('scan_session_id');
+            }
+
+            static::$scansCache[$key] = $query
                 ->with(['tankerCompartment', 'parkingLocation'])
                 ->get()
                 ->keyBy(fn ($item) => $item->tankerCompartment?->compartment_no);
@@ -94,6 +103,7 @@ class ScanMTTable extends TableWidget
             $compNo = $i;
             $columns[] = TextColumn::make("komp_{$compNo}")
                 ->label("Komp {$compNo}")
+                ->when($compNo === 4, fn (TextColumn $column) => $column->toggleable(isToggledHiddenByDefault: true))
                 ->badge(fn (ScanLog $record) => $this->getScansForRecord($record)->has($compNo))
                 ->getStateUsing(function (ScanLog $record) use ($compNo) {
                     $scans = $this->getScansForRecord($record);
@@ -119,11 +129,11 @@ class ScanMTTable extends TableWidget
                 $totalComps = TankerCompartment::where('tanker_id', $record->tanker_id)->count();
                 $scannedCount = $scans->count();
 
-                return ($totalComps > 0 && $scannedCount >= $totalComps) ? 'Done' : 'Kurang';
+                return ($totalComps > 0 && $scannedCount >= $totalComps) ? 'Complete' : 'Belum Lengkap';
             })
             ->color(fn (string $state): string => match ($state) {
-                'Done' => 'success',
-                'Kurang' => 'warning',
+                'Complete' => 'success',
+                'Belum Lengkap' => 'warning',
                 default => 'gray',
             });
 
@@ -149,6 +159,7 @@ class ScanMTTable extends TableWidget
                     ->select([
                         DB::raw('MAX(scan_logs.id) as id'),
                         'scan_logs.driver_id',
+                        'scan_logs.scan_session_id',
                         'tanker_compartments.tanker_id',
                         'tankers.nopol as nopol',
                         'tankers.capacity_kl as capacity_kl',
@@ -162,6 +173,7 @@ class ScanMTTable extends TableWidget
                     ])
                     ->groupBy([
                         'scan_logs.driver_id',
+                        'scan_logs.scan_session_id',
                         'tanker_compartments.tanker_id',
                         'tankers.nopol',
                         'tankers.capacity_kl',

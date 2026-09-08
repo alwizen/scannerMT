@@ -157,7 +157,7 @@ Accept: application/json
 Content-Type: application/json
 ```
 
-API saat ini tidak memerlukan token Sanctum atau header `Authorization`. Login driver memvalidasi nomor driver aktif dan mengembalikan identitas driver. Sesi scan harus dibuat setelah login dan sebelum mengirim scan.
+API saat ini tidak memerlukan token Sanctum atau header `Authorization`. Login driver memvalidasi nomor driver aktif dan mengembalikan identitas driver. Sesi scan dibuat otomatis saat scan pertama untuk kombinasi driver, device, dan tanker yang ditemukan dari RFID.
 
 Setelah menjalankan `php artisan migrate --seed`, data contoh yang dapat dipakai adalah:
 
@@ -197,7 +197,7 @@ Response `200 OK`:
 }
 ```
 
-Simpan `data.id` dari response untuk dipakai sebagai `driver_id` pada request berikutnya.
+Simpan `data.id` dari response untuk dipakai sebagai `driver_id` pada request scan dan riwayat.
 
 ### 2. Mengambil tanker tersedia
 
@@ -207,7 +207,7 @@ GET {{base_url}}/tankers/available
 
 Endpoint ini hanya mengembalikan tanker dengan status `available`. Pilih `data.id` dari salah satu tanker untuk membuat sesi.
 
-### 3. Membuat sesi scan
+### 3. Membuat sesi scan secara eksplisit (opsional)
 
 ```http
 POST {{base_url}}/scan-sessions
@@ -240,7 +240,7 @@ Response `201 Created`:
 }
 ```
 
-Simpan `data.scan_session_id`. Sesi mengikat driver, device, dan tanker. Sesi hanya dapat digunakan ketika statusnya `in_progress`.
+Endpoint ini tetap tersedia untuk client yang ingin memulai sesi secara eksplisit. Namun, endpoint scan tidak mewajibkannya: jika `scan_session_id` tidak dikirim, backend akan memakai sesi `in_progress` yang sesuai atau membuat sesi baru secara otomatis.
 
 ### 4. Menyimpan scan RFID/NFC
 
@@ -286,7 +286,7 @@ Response `200 OK` memiliki bentuk berikut:
 }
 ```
 
-`scan_session_id`, `driver_id`, `device_uuid`, dan `rfid_uid` wajib dikirim. Driver, device, serta tanker sesi harus aktif/tersedia dan harus saling cocok dengan sesi. Kompartemen yang sama tidak dapat discan dua kali dalam satu sesi. Setelah semua kompartemen tanker discan, status sesi menjadi `completed`. Koordinat bersifat opsional; `latitude` harus berada di antara `-90` dan `90`, sedangkan `longitude` di antara `-180` dan `180`.
+`driver_id`, `device_uuid`, dan `rfid_uid` wajib dikirim. `scan_session_id` bersifat opsional. Backend menemukan tanker dari RFID, memakai sesi aktif yang sesuai, atau membuat sesi baru jika ritase sebelumnya sudah `completed`. Kompartemen yang sama tidak dapat discan dua kali dalam satu sesi. Setelah semua kompartemen tanker discan, status sesi menjadi `completed`, tetapi seluruh log tetap tersimpan. Koordinat bersifat opsional; `latitude` harus berada di antara `-90` dan `90`, sedangkan `longitude` di antara `-180` dan `180`.
 
 ### 5. Mengambil riwayat scan
 
@@ -330,7 +330,7 @@ Response `200 OK` mengembalikan data per halaman, diurutkan dari scan terbaru. `
 | `400` | `driver_id` tidak dikirim pada endpoint history |
 | `404` | Driver tidak ditemukan/tidak aktif, device tidak ditemukan/tidak aktif, atau RFID tidak ditemukan |
 | `409` | Kompartemen sudah discan dalam sesi yang sama |
-| `422` | Payload tidak lolos validasi, sesi tidak valid, tanker tidak tersedia, atau koordinat di luar rentang |
+| `422` | Payload tidak lolos validasi, driver/device/tanker tidak tersedia, atau koordinat di luar rentang |
 
 Response error umumnya memiliki `success: false` dan `message`. Error validasi Laravel juga menyertakan object `errors`.
 
@@ -341,8 +341,8 @@ Response error umumnya memiliki `success: false` dan `message`. Error validasi L
 3. Buat request `POST {{base_url}}/driver-login`, pilih **Body > raw > JSON**, masukkan body login, lalu klik **Send**.
 4. Catat nilai `data.id` dari response login.
 5. Buat request `GET {{base_url}}/tankers/available`, lalu pilih `data.id` tanker.
-6. Buat request `POST {{base_url}}/scan-sessions` dan catat `data.scan_session_id`.
-7. Buat request `POST {{base_url}}/scan` dengan `scan_session_id` tersebut dan body scan.
+6. Buat request `POST {{base_url}}/scan` dengan body scan. Session akan dibuat atau dipilih otomatis oleh backend.
+7. Ulangi request scan untuk seluruh kompartemen. Setelah selesai, scan berikutnya pada MT yang sama akan masuk ke session/ritase baru.
 8. Buat request `GET {{base_url}}/scan-history?driver_id=1&page=1&per_page=15` untuk melihat riwayat.
 
 Alternatif cepat tanpa environment: ganti `{{base_url}}` langsung dengan `http://localhost:8080/api` atau `http://127.0.0.1:8000/api`.

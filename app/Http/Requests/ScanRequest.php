@@ -14,7 +14,7 @@ class ScanRequest extends FormRequest
     public function rules(): array
     {
         return [
-            'scan_session_id' => ['required', 'integer', 'exists:scan_sessions,id'],
+            'scan_session_id' => ['nullable', 'integer', 'exists:scan_sessions,id'],
             'driver_id' => ['required', 'integer', 'exists:drivers,id'],
             'device_uuid' => ['required', 'string', 'exists:devices,device_uuid'],
             'rfid_uid' => ['required', 'string'],

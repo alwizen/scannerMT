@@ -224,4 +224,62 @@ class ParkingLocationScanApiTest extends TestCase
             'status' => 'completed',
         ]);
     }
+
+    public function test_same_tanker_can_start_a_new_automatic_session_after_completion(): void
+    {
+        $driver = Driver::create([
+            'driver_no' => 'DRV-004',
+            'name' => 'Deni Driver',
+            'role' => 'driver',
+            'is_active' => true,
+        ]);
+
+        $device = Device::create([
+            'device_uuid' => 'DEV-UUID-004',
+            'name' => 'Scanner Terminal 4',
+            'is_active' => true,
+        ]);
+
+        $tanker = Tanker::create([
+            'nopol' => 'B 6666 Y',
+            'capacity_kl' => 8,
+            'status' => 'available',
+        ]);
+
+        $compartment = TankerCompartment::create([
+            'tanker_id' => $tanker->id,
+            'compartment_no' => 1,
+            'capacity_kl' => 8.00,
+            'rfid_uid' => 'RFID-TAG-401',
+        ]);
+
+        $payload = [
+            'driver_id' => $driver->id,
+            'device_uuid' => $device->device_uuid,
+            'rfid_uid' => $compartment->rfid_uid,
+        ];
+
+        $firstScan = $this->postJson('/api/scan', $payload)->assertOk();
+        $firstSessionId = $firstScan->json('data.scan_session_id');
+
+        $this->postJson('/api/scan', $payload)
+            ->assertStatus(409)
+            ->assertJsonPath('message', 'Sesi scan baru dapat dimulai setelah jeda 5 menit');
+
+        $this->travel(6)->minutes();
+
+        $secondScan = $this->postJson('/api/scan', $payload)->assertOk();
+        $secondSessionId = $secondScan->json('data.scan_session_id');
+
+        $this->assertNotSame($firstSessionId, $secondSessionId);
+        $this->assertDatabaseCount('scan_logs', 2);
+        $this->assertDatabaseHas('scan_sessions', [
+            'id' => $firstSessionId,
+            'status' => 'completed',
+        ]);
+        $this->assertDatabaseHas('scan_sessions', [
+            'id' => $secondSessionId,
+            'status' => 'completed',
+        ]);
+    }
 }

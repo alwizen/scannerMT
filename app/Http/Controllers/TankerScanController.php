@@ -141,20 +141,6 @@ class TankerScanController extends Controller
             ], 422);
         }
 
-        $session = ScanSession::whereKey($request->scan_session_id)
-            ->where('driver_id', $driver->id)
-            ->where('device_id', $device->id)
-            ->where('tanker_id', $compartment->tanker_id)
-            ->where('status', 'in_progress')
-            ->first();
-
-        if (! $session) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Sesi scan tidak valid atau sudah selesai',
-            ], 422);
-        }
-
         $matchingLocation = null;
         $isInsideGeofence = false;
 
@@ -166,7 +152,51 @@ class TankerScanController extends Controller
             $isInsideGeofence = $matchingLocation !== null;
         }
 
-        $scanLog = DB::transaction(function () use ($session, $driver, $device, $compartment, $request, $isInsideGeofence, $matchingLocation) {
+        $scanLog = DB::transaction(function () use ($driver, $device, $compartment, $request, $isInsideGeofence, $matchingLocation) {
+            $session = ScanSession::query()
+                ->where('driver_id', $driver->id)
+                ->where('device_id', $device->id)
+                ->where('tanker_id', $compartment->tanker_id)
+                ->where('status', 'in_progress')
+                ->latest('id')
+                ->first();
+
+            if ($request->filled('scan_session_id')) {
+                $requestedSession = ScanSession::whereKey($request->scan_session_id)
+                    ->where('driver_id', $driver->id)
+                    ->where('device_id', $device->id)
+                    ->where('tanker_id', $compartment->tanker_id)
+                    ->where('status', 'in_progress')
+                    ->first();
+
+                if ($requestedSession) {
+                    $session = $requestedSession;
+                }
+            }
+
+            if (! $session) {
+                $recentlyCompletedSession = ScanSession::query()
+                    ->where('driver_id', $driver->id)
+                    ->where('device_id', $device->id)
+                    ->where('tanker_id', $compartment->tanker_id)
+                    ->where('status', 'completed')
+                    ->where('completed_at', '>=', now()->subMinutes(5))
+                    ->latest('completed_at')
+                    ->first();
+
+                if ($recentlyCompletedSession) {
+                    abort(409, 'Sesi scan baru dapat dimulai setelah jeda 5 menit');
+                }
+
+                $session = ScanSession::create([
+                    'driver_id' => $driver->id,
+                    'device_id' => $device->id,
+                    'tanker_id' => $compartment->tanker_id,
+                    'status' => 'in_progress',
+                    'started_at' => now(),
+                ]);
+            }
+
             if (ScanLog::where('scan_session_id', $session->id)
                 ->where('tanker_compartment_id', $compartment->id)
                 ->exists()) {
@@ -219,6 +249,7 @@ class TankerScanController extends Controller
             'message' => 'Scan berhasil disimpan',
             'data' => [
                 'scan_log_id' => $scanLog->id,
+                'scan_session_id' => $scanLog->scan_session_id,
                 'scanned_at' => $scanLog->scanned_at->format('Y-m-d H:i:s'),
                 'driver' => [
                     'id' => $driver->id,
@@ -277,6 +308,7 @@ class TankerScanController extends Controller
 
             return [
                 'scan_log_id' => $log->id,
+                'scan_session_id' => $log->scan_session_id,
                 'scanned_at' => $log->scanned_at ? $log->scanned_at->format('Y-m-d H:i:s') : null,
                 'tanker' => $tanker ? [
                     'id' => $tanker->id,
