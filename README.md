@@ -433,3 +433,212 @@ php artisan serve
 ```
 
 Sesuaikan koneksi database di `.env`. Default `.env.example` menggunakan SQLite, sedangkan konfigurasi Docker di atas menggunakan MySQL.
+
+## Instalasi Di Ubuntu
+
+Bagian ini ditujukan untuk instalasi langsung di server Ubuntu, tanpa Docker. Contoh menggunakan Ubuntu 24.04, PHP 8.4, MySQL, Nginx, dan Node.js LTS.
+
+### 1. Install dependency sistem
+
+```bash
+sudo apt update
+sudo apt install -y nginx mysql-server supervisor git unzip curl \
+  php8.4-cli php8.4-fpm php8.4-mysql php8.4-sqlite3 php8.4-mbstring \
+  php8.4-xml php8.4-curl php8.4-zip php8.4-bcmath php8.4-intl
+```
+
+Jika package PHP 8.4 belum tersedia pada Ubuntu yang digunakan, tambahkan repository PHP yang sesuai terlebih dahulu atau gunakan versi PHP yang memenuhi requirement pada `composer.json`.
+
+Install Composer dan Node.js:
+
+```bash
+cd /tmp
+curl -sS https://getcomposer.org/installer | php
+sudo mv composer.phar /usr/local/bin/composer
+
+curl -fsSL https://deb.nodesource.com/setup_lts.x | sudo -E bash -
+sudo apt install -y nodejs
+```
+
+### 2. Clone dan siapkan aplikasi
+
+Contoh lokasi aplikasi adalah `/var/www/scannermt`:
+
+```bash
+sudo mkdir -p /var/www
+sudo git clone <URL_REPOSITORY> /var/www/scannermt
+sudo chown -R "$USER":www-data /var/www/scannermt
+cd /var/www/scannermt
+
+composer install --no-dev --optimize-autoloader
+cp .env.example .env
+php artisan key:generate
+npm ci
+npm run build
+```
+
+Edit `.env` dan isi minimal konfigurasi berikut:
+
+```dotenv
+APP_NAME="Scanner MT"
+APP_ENV=production
+APP_DEBUG=false
+APP_URL=https://domain-anda.example
+APP_TIMEZONE=Asia/Jakarta
+
+DB_CONNECTION=mysql
+DB_HOST=127.0.0.1
+DB_PORT=3306
+DB_DATABASE=scannermt
+DB_USERNAME=scannermt
+DB_PASSWORD=password-database-yang-kuat
+
+SESSION_DRIVER=database
+CACHE_STORE=database
+QUEUE_CONNECTION=database
+```
+
+Buat database dan user MySQL:
+
+```bash
+sudo mysql
+```
+
+```sql
+CREATE DATABASE scannermt CHARACTER SET utf8mb4 COLLATE utf8mb4_unicode_ci;
+CREATE USER 'scannermt'@'localhost' IDENTIFIED BY 'password-database-yang-kuat';
+GRANT ALL PRIVILEGES ON scannermt.* TO 'scannermt'@'localhost';
+FLUSH PRIVILEGES;
+EXIT;
+```
+
+> Gunakan password database yang berbeda dari contoh dan jangan commit file `.env`.
+
+Jalankan migration, seeder, dan optimasi cache Laravel:
+
+```bash
+php artisan migrate --force
+php artisan db:seed --force
+php artisan storage:link
+php artisan optimize
+```
+
+Pastikan permission runtime Laravel benar:
+
+```bash
+sudo chown -R www-data:www-data /var/www/scannermt/storage /var/www/scannermt/bootstrap/cache
+sudo chmod -R ug+rwx /var/www/scannermt/storage /var/www/scannermt/bootstrap/cache
+```
+
+### 3. Konfigurasi Nginx
+
+Buat `/etc/nginx/sites-available/scannermt`:
+
+```nginx
+server {
+  listen 80;
+  server_name domain-anda.example;
+  root /var/www/scannermt/public;
+
+  index index.php;
+
+  location / {
+    try_files $uri $uri/ /index.php?$query_string;
+  }
+
+  location ~ \.php$ {
+    include snippets/fastcgi-php.conf;
+    fastcgi_pass unix:/run/php/php8.4-fpm.sock;
+  }
+
+  location ~ /\.(?!well-known).* {
+    deny all;
+  }
+}
+```
+
+Aktifkan site dan cek konfigurasi:
+
+```bash
+sudo ln -s /etc/nginx/sites-available/scannermt /etc/nginx/sites-enabled/scannermt
+sudo nginx -t
+sudo systemctl reload nginx
+sudo systemctl enable --now nginx php8.4-fpm mysql
+```
+
+Sesuaikan `php8.4-fpm.sock` jika server menggunakan versi PHP lain.
+
+### 4. Konfigurasi Supervisor Untuk Queue
+
+Aplikasi menggunakan `QUEUE_CONNECTION=database`, sehingga migration harus sudah membuat tabel `jobs` sebelum worker dijalankan. Buat file `/etc/supervisor/conf.d/scannermt-worker.conf`:
+
+```ini
+[program:scannermt-worker]
+process_name=%(program_name)s_%(process_num)02d
+command=/usr/bin/php /var/www/scannermt/artisan queue:work database --sleep=3 --tries=3 --timeout=90
+directory=/var/www/scannermt
+autostart=true
+autorestart=true
+stopasgroup=true
+killasgroup=true
+numprocs=2
+redirect_stderr=true
+stdout_logfile=/var/log/scannermt-worker.log
+stopwaitsecs=3600
+user=www-data
+```
+
+`numprocs=2` menjalankan dua worker. Naikkan atau turunkan jumlahnya sesuai CPU dan beban server. Nilai `stopwaitsecs` harus lebih besar dari timeout job terlama agar worker dapat berhenti dengan baik.
+
+Aktifkan konfigurasi Supervisor:
+
+```bash
+sudo touch /var/log/scannermt-worker.log
+sudo chown www-data:www-data /var/log/scannermt-worker.log
+sudo supervisorctl reread
+sudo supervisorctl update
+sudo supervisorctl start scannermt-worker:*
+sudo supervisorctl status
+```
+
+Perintah operasional queue:
+
+```bash
+# Melihat log worker
+sudo tail -f /var/log/scannermt-worker.log
+
+# Restart worker setelah deploy atau perubahan kode
+cd /var/www/scannermt
+php artisan queue:restart
+sudo supervisorctl restart scannermt-worker:*
+
+# Melihat job gagal
+php artisan queue:failed
+
+# Mencoba ulang job gagal
+php artisan queue:retry all
+```
+
+Setelah setiap deployment, jalankan urutan berikut agar worker membaca kode terbaru:
+
+```bash
+cd /var/www/scannermt
+git pull
+composer install --no-dev --optimize-autoloader
+npm ci
+npm run build
+php artisan migrate --force
+php artisan optimize
+php artisan queue:restart
+sudo supervisorctl restart scannermt-worker:*
+sudo systemctl reload php8.4-fpm
+sudo systemctl reload nginx
+```
+
+Jika worker terus restart, periksa log Laravel dan Supervisor:
+
+```bash
+tail -f /var/www/scannermt/storage/logs/laravel.log
+sudo tail -f /var/log/supervisor/supervisord.log
+sudo supervisorctl status
+```

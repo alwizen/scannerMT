@@ -45,6 +45,7 @@ class AdminPanelProvider extends PanelProvider
             ->brandLogoHeight('4.8rem')
             ->darkMode(true)
             ->databaseNotifications()
+            ->sidebarCollapsibleOnDesktop()
             ->colors([
                 'primary' => Color::Default,
             ])
@@ -63,8 +64,8 @@ class AdminPanelProvider extends PanelProvider
             ])
             ->discoverWidgets(in: app_path('Filament/Widgets'), for: 'App\Filament\Widgets')
             ->widgets([
-                // StatOverview::class,
-                // ScanMTTable::class,
+                StatOverview::class,
+                ScanMTTable::class,
                 // // AccountWidget::class,
                 // FilamentInfoWidget::class,
             ])

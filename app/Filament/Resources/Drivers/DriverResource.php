@@ -116,6 +116,7 @@ class DriverResource extends Resource
                 TextColumn::make('role')
                     ->searchable()
                     ->label('Jabatan')
+                    ->badge()
                     ->formatStateUsing(fn($state) => match ($state) {
                         'driver' => 'AMT 1',
                         'helper' => 'AMT 2',

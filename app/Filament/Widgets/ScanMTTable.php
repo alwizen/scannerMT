@@ -20,7 +20,7 @@ class ScanMTTable extends TableWidget
 
     protected int | string | array $columnSpan = 'full';
 
-    protected static ?int $sort = 2;
+    protected static ?int $sort = 3;
 
     protected static array $scansCache = [];
 
