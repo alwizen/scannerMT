@@ -77,6 +77,7 @@ class TankerCompartmentResource extends Resource
                                 }
                             })
                     )
+                    ->getOptionLabelFromRecordUsing(fn (Tanker $record): string => sprintf('%s (%sKL)', $record->nopol, $record->capacity_kl))
                     ->required()
                     ->live()
                     ->disabled(fn (?TankerCompartment $record) => $record !== null && $record->exists)

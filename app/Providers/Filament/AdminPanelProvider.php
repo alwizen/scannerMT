@@ -7,6 +7,7 @@ use App\Filament\Widgets\ScanMTTable;
 use App\Filament\Widgets\StatOverview;
 use Filament\Http\Middleware\Authenticate;
 use BezhanSalleh\FilamentShield\FilamentShieldPlugin;
+use Filament\Enums\GlobalSearchPosition;
 use Filament\Http\Middleware\AuthenticateSession;
 use Filament\Http\Middleware\DisableBladeIconComponents;
 use Filament\Http\Middleware\DispatchServingFilamentEvent;
@@ -35,6 +36,7 @@ class AdminPanelProvider extends PanelProvider
         return $panel
             ->default()
             ->maxContentWidth(Width::Full)
+            // ->globalSearch(position: GlobalSearchPosition::Sidebar)
             ->id('admin')
             ->path('admin')
             ->login()

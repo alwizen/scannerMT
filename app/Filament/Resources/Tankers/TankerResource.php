@@ -21,6 +21,7 @@ use Filament\Resources\Resource;
 use Filament\Schemas\Schema;
 use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
+use Filament\Tables\Filters\Filter;
 use Filament\Tables\Filters\TrashedFilter;
 use Filament\Tables\Table;
 use Illuminate\Database\Eloquent\Builder;
@@ -96,7 +97,8 @@ class TankerResource extends Resource
         return $table
             ->columns([
                 TextColumn::make('nopol')
-                    ->searchable(),
+                    ->searchable()
+                    ->copyable(),
                 TextColumn::make('capacity_kl')
                     ->numeric()
                     ->sortable(),
@@ -116,6 +118,24 @@ class TankerResource extends Resource
                     ->toggleable(isToggledHiddenByDefault: true),
             ])
             ->filters([
+                Filter::make('capacity_kl')
+                    ->label('Kapasitas')
+                    ->schema([
+                        Select::make('value')
+                            ->label('Kapasitas')
+                            ->options([
+                                '5' => '5 KL',
+                                '8' => '8 KL',
+                                '16' => '16 KL',
+                                '24' => '24 KL',
+                                '32' => '32 KL',
+                            ])
+                            ->searchable(),
+                    ])
+                    ->query(fn (Builder $query, array $data): Builder => $query->when(
+                        $data['value'] ?? null,
+                        fn (Builder $query, $capacity): Builder => $query->where('capacity_kl', $capacity),
+                    )),
                 TrashedFilter::make(),
             ])
             ->recordActions([
