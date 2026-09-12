@@ -24,33 +24,33 @@ class StatOverview extends StatsOverviewWidget
         return 'Selamat datang, ' . (Auth::user()?->name ?? 'Admin') . ' 👋';
     }
 
-    protected function getStats(): array
-    {
-        return [
-            Stat::make('Total MT', Tanker::query()->count())
-                ->description('Jumlah Mobil Tangki terdaftar')
-                ->color('info'),
+    // protected function getStats(): array
+    // {
+    //     return [
+    //         Stat::make('Total MT', Tanker::query()->count())
+    //             ->description('Jumlah Mobil Tangki terdaftar')
+    //             ->color('info'),
 
-            Stat::make('Total Driver', Driver::query()->count())
-                ->description('Jumlah AMT terdaftar')
-                ->color('success'),
+    //         Stat::make('Total Driver', Driver::query()->count())
+    //             ->description('Jumlah AMT terdaftar')
+    //             ->color('success'),
 
-            Stat::make(
-                'AMT Sudah Scan',
-                ScanLog::query()
-                    ->when(
-                        $this->getFilterDateRange(),
-                        fn ($query, array $dateRange) => $query
-                            ->where('scanned_at', '>=', $dateRange[0])
-                            ->where('scanned_at', '<=', $dateRange[1])
-                    )
-                    ->distinct('driver_id')
-                    ->count('driver_id')
-            )
-                ->description('AMT yang memiliki riwayat scan')
-                ->color('warning'),
-        ];
-    }
+    //         Stat::make(
+    //             'AMT Sudah Scan',
+    //             ScanLog::query()
+    //                 ->when(
+    //                     $this->getFilterDateRange(),
+    //                     fn ($query, array $dateRange) => $query
+    //                         ->where('scanned_at', '>=', $dateRange[0])
+    //                         ->where('scanned_at', '<=', $dateRange[1])
+    //                 )
+    //                 ->distinct('driver_id')
+    //                 ->count('driver_id')
+    //         )
+    //             ->description('AMT yang memiliki riwayat scan')
+    //             ->color('warning'),
+    //     ];
+    // }
 
     private function getFilterDateRange(): ?array
     {

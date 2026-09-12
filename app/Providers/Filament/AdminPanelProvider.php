@@ -38,6 +38,7 @@ class AdminPanelProvider extends PanelProvider
             ->maxContentWidth(Width::Full)
             // ->globalSearch(position: GlobalSearchPosition::Sidebar)
             ->id('admin')
+            ->topNavigation()
             ->path('admin')
             ->login()
             ->spa()

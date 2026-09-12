@@ -17,7 +17,7 @@ class RitaseMTChart extends ChartWidget
 
     protected ?string $emptyStateHeading = 'No data available';
 
-    protected ?string $pollingInterval = '10s';
+    protected ?string $pollingInterval = '3s';
 
     protected ?string $maxHeight = '300px';
 
