@@ -86,6 +86,18 @@ class ScanLogResource extends Resource
                 Select::make('tanker_compartment_id')
                     ->relationship('tankerCompartment', 'id')
                     ->required(),
+                Select::make('content_status')
+                    ->label('Isi Kompartemen')
+                    ->options([
+                        'kosong' => 'Kosong',
+                        'air' => 'Air',
+                        'sisa_minyak' => 'Sisa Minyak',
+                        'lainnya' => 'Lainnya',
+                    ])
+                    ->required(),
+                TextInput::make('note')
+                    ->label('Catatan')
+                    ->maxLength(1000),
                 TextInput::make('latitude')
                     ->numeric(),
                 TextInput::make('longitude')
@@ -105,6 +117,16 @@ class ScanLogResource extends Resource
                     ->label('Device'),
                 TextEntry::make('tankerCompartment.id')
                     ->label('Tanker compartment'),
+                TextEntry::make('content_status')
+                    ->label('Isi Kompartemen')
+                    ->formatStateUsing(fn($state) => match ($state) {
+                        'sisa_minyak' => 'Sisa Minyak',
+                        default => ucfirst((string) $state),
+                    })
+                    ->placeholder('-'),
+                TextEntry::make('note')
+                    ->label('Catatan')
+                    ->placeholder('-'),
                 TextEntry::make('latitude')
                     ->numeric()
                     ->placeholder('-'),

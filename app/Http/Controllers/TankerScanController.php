@@ -76,6 +76,67 @@ class TankerScanController extends Controller
         ], 201);
     }
 
+    public function validateCompartment(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'rfid_uid' => ['required', 'string'],
+            'driver_id' => ['required', 'integer', 'exists:drivers,id'],
+            'device_uuid' => ['required', 'string', 'exists:devices,device_uuid'],
+        ]);
+
+        $compartment = TankerCompartment::with('tanker')
+            ->where('rfid_uid', $validated['rfid_uid'])
+            ->first();
+
+        if (! $compartment) {
+            return response()->json([
+                'success' => false,
+                'message' => 'RFID/QR Kompartemen tidak terdaftar',
+            ], 404);
+        }
+
+        if ($compartment->tanker?->status !== 'available') {
+            return response()->json([
+                'success' => false,
+                'message' => 'Tanker kompartemen tidak tersedia untuk scan',
+            ], 422);
+        }
+
+        $device = Device::where('device_uuid', $validated['device_uuid'])->firstOrFail();
+        $activeSession = ScanSession::query()
+            ->where('driver_id', $validated['driver_id'])
+            ->where('device_id', $device->id)
+            ->where('tanker_id', $compartment->tanker_id)
+            ->where('status', 'in_progress')
+            ->latest('id')
+            ->first();
+
+        if ($activeSession && ScanLog::where('scan_session_id', $activeSession->id)
+            ->where('tanker_compartment_id', $compartment->id)
+            ->exists()) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Kompartemen ini sudah dilakukan pemeriksaan pada sesi aktif',
+            ], 409);
+        }
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Kompartemen terdaftar',
+            'data' => [
+                'id' => $compartment->id,
+                'compartment_no' => $compartment->compartment_no,
+                'capacity_kl' => $compartment->capacity_kl,
+                'rfid_uid' => $compartment->rfid_uid,
+                'tanker' => [
+                    'id' => $compartment->tanker?->id,
+                    'nopol' => $compartment->tanker?->nopol,
+                    'capacity_kl' => $compartment->tanker?->capacity_kl,
+                ],
+            ],
+        ]);
+    }
+
     public function driverLogin(DriverLoginRequest $request): JsonResponse
     {
         $driver = Driver::where('driver_no', $request->driver_no)
@@ -208,6 +269,8 @@ class TankerScanController extends Controller
                 'driver_id' => $driver->id,
                 'device_id' => $device->id,
                 'tanker_compartment_id' => $compartment->id,
+                'content_status' => $request->content_status,
+                'note' => $request->note,
                 'latitude' => $request->latitude,
                 'longitude' => $request->longitude,
                 'is_inside_geofence' => $isInsideGeofence,
@@ -273,6 +336,8 @@ class TankerScanController extends Controller
                     'capacity_kl' => $compartment->capacity_kl,
                     'rfid_uid' => $compartment->rfid_uid,
                 ],
+                'content_status' => $scanLog->content_status,
+                'note' => $scanLog->note,
                 'geofence' => [
                     'is_inside' => $isInsideGeofence,
                     'location_id' => $matchingLocation?->id,
@@ -321,6 +386,8 @@ class TankerScanController extends Controller
                     'capacity_kl' => $compartment->capacity_kl,
                     'rfid_uid' => $compartment->rfid_uid,
                 ] : null,
+                'content_status' => $log->content_status,
+                'note' => $log->note,
                 'geofence' => [
                     'is_inside' => (bool) $log->is_inside_geofence,
                     'location_id' => $log->parking_location_id,

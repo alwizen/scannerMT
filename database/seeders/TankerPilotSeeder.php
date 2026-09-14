@@ -19,7 +19,7 @@ class TankerPilotSeeder extends Seeder
     public function run(): void
     {
         Driver::create([
-            'driver_no' => '712D1717',
+            'driver_no' => '1',
             'name' => 'Irwan Pras',
             'phone' => null,
             'role' => 'driver',
@@ -36,12 +36,12 @@ class TankerPilotSeeder extends Seeder
 
         Device::create([
             'device_uuid' => '63adafc2f137b5c0',
-            'name' => 'UNIWA W999 Pilot',
+            'name' => 'UNIWA W999',
             'is_active' => true,
         ]);
 
         Device::create([
-            'device_uuid' => '1885cf5b4989693',
+            'device_uuid' => 'c063f585e2984820',
             'name' => 'Oppo',
             'is_active' => true,
         ]);
@@ -57,7 +57,7 @@ class TankerPilotSeeder extends Seeder
                 'tanker_id' => $tanker->id,
                 'compartment_no' => 1,
                 'capacity_kl' => 8.00,
-                'rfid_uid' => 'NFC-COMP-001',
+                'rfid_uid' => 'F729DC77',
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
@@ -65,7 +65,7 @@ class TankerPilotSeeder extends Seeder
                 'tanker_id' => $tanker->id,
                 'compartment_no' => 2,
                 'capacity_kl' => 8.00,
-                'rfid_uid' => 'NFC-COMP-002',
+                'rfid_uid' => 'D76DCA77',
                 'created_at' => now(),
                 'updated_at' => now(),
             ],
@@ -73,7 +73,7 @@ class TankerPilotSeeder extends Seeder
                 'tanker_id' => $tanker->id,
                 'compartment_no' => 3,
                 'capacity_kl' => 8.00,
-                'rfid_uid' => 'NFC-COMP-003',
+                'rfid_uid' => '712D1717',
                 'created_at' => now(),
                 'updated_at' => now(),
             ],

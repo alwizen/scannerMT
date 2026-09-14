@@ -113,11 +113,27 @@ class ScanMTTable extends TableWidget
                         return '-';
                     }
 
-                    return Carbon::parse($compLog->scanned_at)->format('H:i:s');
+                    $scannedAt = Carbon::parse($compLog->scanned_at)->format('H:i:s');
+                    $contentStatus = match ($compLog->content_status) {
+                        'sisa_minyak' => 'Sisa Minyak',
+                        'kosong' => 'Kosong',
+                        'air' => 'Air',
+                        'lainnya' => 'Lainnya',
+                        default => null,
+                    };
+
+                    return $contentStatus ? "{$scannedAt} - {$contentStatus}" : $scannedAt;
                 })
                 ->color(function (ScanLog $record) use ($compNo) {
-                    $scans = $this->getScansForRecord($record);
-                    return $scans->has($compNo) ? 'success' : 'gray';
+                    $compLog = $this->getScansForRecord($record)->get($compNo);
+
+                    if (! $compLog) {
+                        return 'gray';
+                    }
+
+                    return in_array($compLog->content_status, ['air', 'sisa_minyak'], true)
+                        ? 'danger'
+                        : 'success';
                 });
         }
 
