@@ -6,6 +6,7 @@ use Illuminate\Support\Facades\Route;
 Route::post('driver-login', [TankerScanController::class, 'driverLogin']);
 Route::get('tankers/available', [TankerScanController::class, 'availableTankers']);
 Route::post('scan-sessions', [TankerScanController::class, 'startScanSession']);
+#validasi Comp
 Route::get('scan/validate-compartment', [TankerScanController::class, 'validateCompartment']);
 Route::post('scan', [TankerScanController::class, 'scan']);
 Route::get('scan-history', [TankerScanController::class, 'scanHistory']);
