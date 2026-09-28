@@ -301,7 +301,7 @@ class TankerScanController extends Controller
                 $driver->name,
                 $tanker->nopol,
                 $compartment->compartment_no,
-                $isInsideGeofence ? 'Di dalam lokasi parkir.' : 'Di luar lokasi parkir.'
+                // $isInsideGeofence ? 'Di dalam lokasi parkir.' : 'Di luar lokasi parkir.'
             ))
             ->status($isInsideGeofence ? 'success' : 'warning');
 

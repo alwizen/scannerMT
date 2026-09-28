@@ -15,7 +15,7 @@ class StatOverview extends StatsOverviewWidget
 {
     use InteractsWithPageFilters;
 
-    protected static ?int $sort = 1;
+    protected static ?int $sort = 0;
 
     protected ?string $description = 'Berikut adalah gambaran umum dari beberapa analisis.';
 

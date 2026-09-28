@@ -139,9 +139,6 @@ class ScanLogResource extends Resource
                 TextEntry::make('is_inside_geofence')
                     ->label('Geofence Lokasi')
                     ->badge()
-                    ->formatStateUsing(fn($state, ScanLog $record) => $state
-                        ? 'Di Dalam Area (' . ($record->parkingLocation?->name ?? 'Parkir MT') . ')'
-                        : 'Di Luar Area Parkir')
                     ->color(fn($state) => $state ? 'success' : 'danger'),
                 TextEntry::make('scanned_at')
                     ->dateTime(),
@@ -194,13 +191,6 @@ class ScanLogResource extends Resource
                     }
 
                     return '-';
-                })
-                ->description(function (ScanLog $record) {
-                    if (! $record->latitude || ! $record->longitude) {
-                        return null;
-                    }
-
-                    return $record->is_inside_geofence ? 'Di Dalam Area' : 'Di Luar Area';
                 }),
         ];
 

@@ -20,7 +20,7 @@ class ScanMTTable extends TableWidget
 
     protected int | string | array $columnSpan = 'full';
 
-    protected static ?int $sort = 3;
+    protected static ?int $sort = 1;
 
     protected static array $scansCache = [];
 
@@ -33,7 +33,7 @@ class ScanMTTable extends TableWidget
             $query = ScanLog::query()
                 ->where('driver_id', $record->driver_id)
                 ->whereDate('scanned_at', $record->scan_date)
-                ->whereHas('tankerCompartment', fn ($q) => $q->where('tanker_id', $record->tanker_id));
+                ->whereHas('tankerCompartment', fn($q) => $q->where('tanker_id', $record->tanker_id));
 
             if ($record->scan_session_id) {
                 $query->where('scan_session_id', $record->scan_session_id);
@@ -44,7 +44,7 @@ class ScanMTTable extends TableWidget
             static::$scansCache[$key] = $query
                 ->with(['tankerCompartment', 'parkingLocation'])
                 ->get()
-                ->keyBy(fn ($item) => $item->tankerCompartment?->compartment_no);
+                ->keyBy(fn($item) => $item->tankerCompartment?->compartment_no);
         }
 
         return static::$scansCache[$key];
@@ -57,7 +57,7 @@ class ScanMTTable extends TableWidget
         $columns = [
             TextColumn::make('driver.name')
                 ->label('Nama AMT')
-                ->description(fn (ScanLog $record): string => match ($record->driver?->role) {
+                ->description(fn(ScanLog $record): string => match ($record->driver?->role) {
                     'driver' => 'AMT 1',
                     'helper' => 'AMT 2',
                     default => '-',
@@ -73,7 +73,7 @@ class ScanMTTable extends TableWidget
 
             TextColumn::make('capacity_kl')
                 ->label('Kapasitas')
-                ->formatStateUsing(fn ($state) => $state ? $state . ' KL' : '-')
+                ->formatStateUsing(fn($state) => $state ? $state . ' KL' : '-')
                 ->sortable(),
 
             TextColumn::make('device.name')
@@ -83,6 +83,7 @@ class ScanMTTable extends TableWidget
 
             TextColumn::make('location')
                 ->label('Lokasi (lat & long)')
+                ->toggleable(isToggledHiddenByDefault: true)
                 ->getStateUsing(function (ScanLog $record) {
                     if ($record->latitude && $record->longitude) {
                         return "{$record->latitude}, {$record->longitude}";
@@ -103,8 +104,8 @@ class ScanMTTable extends TableWidget
             $compNo = $i;
             $columns[] = TextColumn::make("komp_{$compNo}")
                 ->label("Komp {$compNo}")
-                ->when($compNo === 4, fn (TextColumn $column) => $column->toggleable(isToggledHiddenByDefault: true))
-                ->badge(fn (ScanLog $record) => $this->getScansForRecord($record)->has($compNo))
+                ->when($compNo === 4, fn(TextColumn $column) => $column->toggleable(isToggledHiddenByDefault: true))
+                ->badge(fn(ScanLog $record) => $this->getScansForRecord($record)->has($compNo))
                 ->getStateUsing(function (ScanLog $record) use ($compNo) {
                     $scans = $this->getScansForRecord($record);
                     $compLog = $scans->get($compNo);
@@ -147,7 +148,7 @@ class ScanMTTable extends TableWidget
 
                 return ($totalComps > 0 && $scannedCount >= $totalComps) ? 'Complete' : 'Belum Lengkap';
             })
-            ->color(fn (string $state): string => match ($state) {
+            ->color(fn(string $state): string => match ($state) {
                 'Complete' => 'success',
                 'Belum Lengkap' => 'warning',
                 default => 'gray',
@@ -168,8 +169,8 @@ class ScanMTTable extends TableWidget
                 [$startDate, $endDate] = $this->getFilterDateRange();
 
                 return ScanLog::query()
-                    ->when($startDate, fn (Builder $query) => $query->where('scan_logs.scanned_at', '>=', $startDate))
-                    ->when($endDate, fn (Builder $query) => $query->where('scan_logs.scanned_at', '<=', $endDate))
+                    ->when($startDate, fn(Builder $query) => $query->where('scan_logs.scanned_at', '>=', $startDate))
+                    ->when($endDate, fn(Builder $query) => $query->where('scan_logs.scanned_at', '<=', $endDate))
                     ->join('tanker_compartments', 'scan_logs.tanker_compartment_id', '=', 'tanker_compartments.id')
                     ->join('tankers', 'tanker_compartments.tanker_id', '=', 'tankers.id')
                     ->select([
