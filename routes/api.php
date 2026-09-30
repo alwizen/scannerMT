@@ -11,3 +11,5 @@ Route::get('scan/validate-compartment', [TankerScanController::class, 'validateC
 Route::post('scan', [TankerScanController::class, 'scan']);
 Route::get('scan-history', [TankerScanController::class, 'scanHistory']);
 Route::get('scan_history', [TankerScanController::class, 'scanHistory']);
+Route::get('scanlogs', [TankerScanController::class, 'scanLogs']);
+Route::get('scan-logs', [TankerScanController::class, 'scanLogs']);

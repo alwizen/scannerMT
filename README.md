@@ -323,6 +323,72 @@ Response `200 OK` mengembalikan data per halaman, diurutkan dari scan terbaru. `
 }
 ```
 
+### 6. Ringkasan scanlog (per ritase/AMT)
+
+Endpoint ini mengembalikan ringkasan log scan per kombinasi AMT + sesi scan + MT + tanggal, dengan field:
+
+- `tanggal`
+- `nama_amt`
+- `nopol`
+- `kapasitas`
+- `jabatan` (`AMT 1` = driver, `AMT 2` = helper)
+- `status` (`done` jika seluruh kompartemen MT sudah discan, selain itu `kurang`)
+
+```http
+GET {{base_url}}/scanlogs
+GET {{base_url}}/scan-logs
+```
+
+Query parameter opsional:
+
+| Parameter | Keterangan |
+| --- | --- |
+| `date` | Filter tanggal scan persis (`YYYY-MM-DD`) |
+| `from` | Filter scan dari tanggal (`YYYY-MM-DD`) |
+| `until` | Filter scan sampai tanggal (`YYYY-MM-DD`) |
+| `driver_id` | Filter berdasarkan id AMT/driver |
+| `nopol` | Filter sebagian nomor polisi MT |
+| `page` | Nomor halaman (default `1`) |
+| `per_page` | Jumlah data per halaman (default `15`, maksimum `100`) |
+
+Contoh request:
+
+```http
+GET {{base_url}}/scanlogs?date=2026-09-30&nopol=B%201234&per_page=20
+```
+
+Response `200 OK`:
+
+```json
+{
+  "success": true,
+  "message": "Data riwayat scan berhasil diambil",
+  "data": [
+    {
+      "tanggal": "2026-09-30",
+      "nama_amt": "Budi Santoso",
+      "nopol": "B 1234 KT",
+      "kapasitas": 24,
+      "jabatan": "AMT 1",
+      "status": "done",
+      "status_text": "Complete",
+      "driver_id": 1,
+      "scan_session_id": 10,
+      "tanker_id": 1,
+      "scanned_compartments": 2,
+      "total_compartments": 2,
+      "last_update": "2026-09-30 10:35:00"
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 20,
+    "total": 1
+  }
+}
+```
+
 ### Status error
 
 | HTTP | Kondisi |

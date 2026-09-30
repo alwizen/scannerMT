@@ -14,9 +14,10 @@ use App\Models\Tanker;
 use App\Models\TankerCompartment;
 use App\Models\User;
 use Filament\Notifications\Notification;
-use Illuminate\Support\Facades\DB;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
+use Illuminate\Support\Carbon;
+use Illuminate\Support\Facades\DB;
 
 class TankerScanController extends Controller
 {
@@ -297,11 +298,10 @@ class TankerScanController extends Controller
         $notification = Notification::make()
             ->title('Scan baru berhasil')
             ->body(sprintf(
-                '%s melakukan scan MT %s, Kompartemen %s. %s',
+                '%s melakukan scan MT %s, Kompartemen %s.',
                 $driver->name,
                 $tanker->nopol,
                 $compartment->compartment_no,
-                // $isInsideGeofence ? 'Di dalam lokasi parkir.' : 'Di luar lokasi parkir.'
             ))
             ->status($isInsideGeofence ? 'success' : 'warning');
 
@@ -346,6 +346,110 @@ class TankerScanController extends Controller
                         ? 'Di dalam lokasi parkir MT'
                         : 'Di luar lokasi parkir MT',
                 ],
+            ],
+        ]);
+    }
+
+    public function scanLogs(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'date' => ['nullable', 'date_format:Y-m-d'],
+            'from' => ['nullable', 'date_format:Y-m-d'],
+            'until' => ['nullable', 'date_format:Y-m-d'],
+            'driver_id' => ['nullable', 'integer', 'exists:drivers,id'],
+            'nopol' => ['nullable', 'string', 'max:30'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:100'],
+        ]);
+
+        $perPage = max(1, min((int) ($validated['per_page'] ?? 15), 100));
+
+        $query = ScanLog::query()
+            ->join('tanker_compartments', 'scan_logs.tanker_compartment_id', '=', 'tanker_compartments.id')
+            ->join('tankers', 'tanker_compartments.tanker_id', '=', 'tankers.id')
+            ->join('drivers', 'scan_logs.driver_id', '=', 'drivers.id')
+            ->select([
+                DB::raw('DATE(scan_logs.scanned_at) as tanggal'),
+                'drivers.name as nama_amt',
+                'drivers.role as jabatan',
+                'tankers.nopol as nopol',
+                'tankers.capacity_kl as kapasitas',
+                'scan_logs.driver_id',
+                'scan_logs.scan_session_id',
+                'tanker_compartments.tanker_id',
+                DB::raw('MAX(scan_logs.scanned_at) as last_update'),
+                DB::raw('COUNT(DISTINCT scan_logs.tanker_compartment_id) as scanned_compartments'),
+                DB::raw('(SELECT COUNT(*) FROM tanker_compartments tc WHERE tc.tanker_id = tanker_compartments.tanker_id AND tc.deleted_at IS NULL) as total_compartments'),
+            ])
+            ->groupBy([
+                'scan_logs.driver_id',
+                'scan_logs.scan_session_id',
+                'tanker_compartments.tanker_id',
+                'drivers.name',
+                'drivers.role',
+                'tankers.nopol',
+                'tankers.capacity_kl',
+                DB::raw('DATE(scan_logs.scanned_at)'),
+            ]);
+
+        if ($validated['date'] ?? null) {
+            $query->whereDate('scan_logs.scanned_at', $validated['date']);
+        }
+
+        if ($validated['from'] ?? null) {
+            $query->whereDate('scan_logs.scanned_at', '>=', $validated['from']);
+        }
+
+        if ($validated['until'] ?? null) {
+            $query->whereDate('scan_logs.scanned_at', '<=', $validated['until']);
+        }
+
+        if ($validated['driver_id'] ?? null) {
+            $query->where('scan_logs.driver_id', $validated['driver_id']);
+        }
+
+        if ($validated['nopol'] ?? null) {
+            $query->where('tankers.nopol', 'like', '%'.$validated['nopol'].'%');
+        }
+
+        $logs = $query->orderByDesc('last_update')->paginate($perPage);
+
+        $data = $logs->getCollection()->map(function ($row) {
+            $total = (int) $row->total_compartments;
+            $scanned = (int) $row->scanned_compartments;
+            $isComplete = $total > 0 && $scanned >= $total;
+
+            return [
+                'tanggal' => $row->tanggal,
+                'nama_amt' => $row->nama_amt,
+                'nopol' => $row->nopol,
+                'kapasitas' => $row->kapasitas !== null ? (int) $row->kapasitas : null,
+                'jabatan' => match ($row->jabatan) {
+                    'driver' => 'AMT 1',
+                    'helper' => 'AMT 2',
+                    default => $row->jabatan,
+                },
+                'status' => $isComplete ? 'done' : 'kurang',
+                'status_text' => $isComplete ? 'Complete' : 'Belum Lengkap',
+                'driver_id' => $row->driver_id,
+                'scan_session_id' => $row->scan_session_id,
+                'tanker_id' => $row->tanker_id,
+                'scanned_compartments' => $scanned,
+                'total_compartments' => $total,
+                'last_update' => $row->last_update
+                    ? Carbon::parse($row->last_update)->format('Y-m-d H:i:s')
+                    : null,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Data riwayat scan berhasil diambil',
+            'data' => $data->values(),
+            'meta' => [
+                'current_page' => $logs->currentPage(),
+                'last_page' => $logs->lastPage(),
+                'per_page' => $logs->perPage(),
+                'total' => $logs->total(),
             ],
         ]);
     }
