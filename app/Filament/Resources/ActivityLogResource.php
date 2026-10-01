@@ -2,6 +2,7 @@
 
 namespace App\Filament\Resources;
 
+use Filament\Facades\Filament;
 use Filament\Forms\Components\DatePicker;
 use Filament\Forms\Components\TextInput;
 use Filament\Tables\Columns\TextColumn;
@@ -12,8 +13,6 @@ use Illuminate\Database\Eloquent\Builder;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Str;
 use Jacobtims\FilamentLogger\Resources\ActivityResource as BaseActivityResource;
-use Spatie\Activitylog\Contracts\Activity;
-use Spatie\Activitylog\Models\Activity as ActivityModel;
 
 class ActivityLogResource extends BaseActivityResource
 {
@@ -123,6 +122,25 @@ class ActivityLogResource extends BaseActivityResource
                             );
                     }),
             ]);
+    }
+
+    protected static function getSubjectTypeList(): array
+    {
+        if (config('filament-logger.resources.enabled', true)) {
+            $subjects = [];
+            $exceptResources = [...config('filament-logger.resources.exclude'), config('filament-logger.activity_resource')];
+            $removedExcludedResources = collect(Filament::getResources())->filter(function ($resource) use ($exceptResources) {
+                return ! in_array($resource, $exceptResources);
+            });
+            foreach ($removedExcludedResources as $resource) {
+                $model = $resource::getModel();
+                $subjects[$model] = Str::of(class_basename($model))->headline();
+            }
+
+            return $subjects;
+        }
+
+        return [];
     }
 
     protected static function getLogNameColors(): array
