@@ -15,6 +15,7 @@ class DriverLoginRequest extends FormRequest
     {
         return [
             'driver_no' => ['required', 'string'],
+            'device_uuid' => ['required', 'string'],
         ];
     }
 }

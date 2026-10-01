@@ -82,7 +82,7 @@ class TankerScanController extends Controller
         $validated = $request->validate([
             'rfid_uid' => ['required', 'string'],
             'driver_id' => ['required', 'integer', 'exists:drivers,id'],
-            'device_uuid' => ['required', 'string', 'exists:devices,device_uuid'],
+            'device_uuid' => ['required', 'string'],
         ]);
 
         $compartment = TankerCompartment::with('tanker')
@@ -103,22 +103,24 @@ class TankerScanController extends Controller
             ], 422);
         }
 
-        $device = Device::where('device_uuid', $validated['device_uuid'])->firstOrFail();
-        $activeSession = ScanSession::query()
-            ->where('driver_id', $validated['driver_id'])
-            ->where('device_id', $device->id)
-            ->where('tanker_id', $compartment->tanker_id)
-            ->where('status', 'in_progress')
-            ->latest('id')
-            ->first();
+        $device = Device::where('device_uuid', $validated['device_uuid'])->first();
+        if ($device) {
+            $activeSession = ScanSession::query()
+                ->where('driver_id', $validated['driver_id'])
+                ->where('device_id', $device->id)
+                ->where('tanker_id', $compartment->tanker_id)
+                ->where('status', 'in_progress')
+                ->latest('id')
+                ->first();
 
-        if ($activeSession && ScanLog::where('scan_session_id', $activeSession->id)
-            ->where('tanker_compartment_id', $compartment->id)
-            ->exists()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Kompartemen ini sudah dilakukan pemeriksaan pada sesi aktif',
-            ], 409);
+            if ($activeSession && ScanLog::where('scan_session_id', $activeSession->id)
+                ->where('tanker_compartment_id', $compartment->id)
+                ->exists()) {
+                return response()->json([
+                    'success' => false,
+                    'message' => 'Kompartemen ini sudah dilakukan pemeriksaan pada sesi aktif',
+                ], 409);
+            }
         }
 
         return response()->json([
@@ -140,6 +142,17 @@ class TankerScanController extends Controller
 
     public function driverLogin(DriverLoginRequest $request): JsonResponse
     {
+        $device = Device::where('device_uuid', $request->device_uuid)
+            ->where('is_active', true)
+            ->first();
+
+        if (! $device) {
+            return response()->json([
+                'success' => false,
+                'message' => 'Device tidak terdaftar atau tidak aktif',
+            ], 403);
+        }
+
         $driver = Driver::where('driver_no', $request->driver_no)
             ->where('is_active', true)
             ->first();
@@ -566,6 +579,110 @@ class TankerScanController extends Controller
                 'last_page' => $logs->lastPage(),
                 'per_page' => $logs->perPage(),
                 'total' => $logs->total(),
+            ],
+        ]);
+    }
+
+    public function tmsScanLogs(Request $request): JsonResponse
+    {
+        $validated = $request->validate([
+            'date' => ['nullable', 'date_format:Y-m-d'],
+            'from' => ['nullable', 'date_format:Y-m-d'],
+            'until' => ['nullable', 'date_format:Y-m-d'],
+            'since_id' => ['nullable', 'integer', 'min:1'],
+            'per_page' => ['nullable', 'integer', 'min:1', 'max:500'],
+        ]);
+
+        $perPage = max(1, min((int) ($validated['per_page'] ?? 100), 500));
+
+        $query = ScanSession::with([
+            'driver:id,name,role',
+            'tanker:id,nopol,capacity_kl',
+            'tanker.compartments:id,tanker_id,compartment_no,capacity_kl,rfid_uid',
+            'scanLogs:id,scan_session_id,tanker_compartment_id,content_status,note,scanned_at',
+        ])
+            ->where('status', 'completed')
+            ->orderBy('id', 'desc');
+
+        if ($validated['date'] ?? null) {
+            $query->whereDate('started_at', $validated['date']);
+        }
+
+        if ($validated['from'] ?? null) {
+            $query->whereDate('started_at', '>=', $validated['from']);
+        }
+
+        if ($validated['until'] ?? null) {
+            $query->whereDate('started_at', '<=', $validated['until']);
+        }
+
+        if ($validated['since_id'] ?? null) {
+            $query->where('id', '>', $validated['since_id']);
+        }
+
+        $sessions = $query->paginate($perPage);
+
+        $data = $sessions->getCollection()->map(function ($session) {
+            $tanker = $session->tanker;
+            $compartments = $tanker?->compartments ?? collect();
+            $scanLogs = $session->scanLogs;
+
+            $scannedIds = $scanLogs->pluck('tanker_compartment_id')->filter()->unique();
+            $scannedCount = $scannedIds->count();
+            $totalCount = $compartments->count();
+            $isDone = $totalCount > 0 && $scannedCount >= $totalCount;
+
+            $needsAction = $scanLogs->pluck('content_status')->filter(function ($status) {
+                return in_array($status, ['sisa_minyak', 'air']);
+            })->isNotEmpty();
+
+            $compartmentDetails = $scanLogs->map(function ($log) use ($compartments) {
+                $comp = $compartments->firstWhere('id', $log->tanker_compartment_id);
+                return [
+                    'no' => $comp?->compartment_no,
+                    'kapasitas_kl' => $comp?->capacity_kl != null ? (float) $comp->capacity_kl : null,
+                    'rfid_uid' => $comp?->rfid_uid,
+                    'content_status' => $log->content_status,
+                    'catatan' => $log->note,
+                    'scanned_at' => $log->scanned_at ? Carbon::parse($log->scanned_at)->format('Y-m-d H:i:s') : null,
+                ];
+            })->sortBy('no')->values();
+
+            return [
+                'ritase_id' => $session->id,
+                'tanggal' => $session->started_at ? Carbon::parse($session->started_at)->format('Y-m-d') : null,
+                'nopol' => $tanker?->nopol,
+                'kapasitas_kl' => $tanker?->capacity_kl != null ? (int) $tanker->capacity_kl : null,
+                'driver' => [
+                    'id' => $session->driver?->id,
+                    'nama' => $session->driver?->name,
+                    'jabatan' => match ($session->driver?->role) {
+                        'driver' => 'AMT 1',
+                        'helper' => 'AMT 2',
+                        default => $session->driver?->role,
+                    },
+                ],
+                'status' => $isDone ? 'done' : 'kurang',
+                'status_text' => $isDone ? 'Complete' : 'Belum Lengkap',
+                'needs_action' => $needsAction,
+                'action_text' => $needsAction ? 'Perlu Tindakan' : 'Ready',
+                'scanned_compartments' => $scannedCount,
+                'total_compartments' => $totalCount,
+                'waktu_mulai' => $session->started_at ? Carbon::parse($session->started_at)->format('Y-m-d H:i:s') : null,
+                'waktu_selesai' => $session->completed_at ? Carbon::parse($session->completed_at)->format('Y-m-d H:i:s') : null,
+                'kompartemen' => $compartmentDetails,
+            ];
+        });
+
+        return response()->json([
+            'success' => true,
+            'message' => 'Data ritase berhasil diambil',
+            'data' => $data->values(),
+            'meta' => [
+                'current_page' => $sessions->currentPage(),
+                'last_page' => $sessions->lastPage(),
+                'per_page' => $sessions->perPage(),
+                'total' => $sessions->total(),
             ],
         ]);
     }

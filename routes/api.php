@@ -13,3 +13,4 @@ Route::get('scan-history', [TankerScanController::class, 'scanHistory']);
 Route::get('scan_history', [TankerScanController::class, 'scanHistory']);
 Route::get('scanlogs', [TankerScanController::class, 'scanLogs']);
 Route::get('scan-logs', [TankerScanController::class, 'scanLogs']);
+Route::get('tms/scanlogs', [TankerScanController::class, 'tmsScanLogs']);

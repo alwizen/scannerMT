@@ -1,143 +1,6 @@
-# Scanner MT
+# CEKDISIT MT
 
-Scanner MT adalah aplikasi Laravel untuk pencatatan scan RFID/NFC kompartemen mobil tangki. Aplikasi ini menyediakan:
-
-- Admin panel Filament untuk mengelola driver, device scanner, mobil tangki, kompartemen, dan log scan.
-- API login driver berdasarkan nomor driver.
-- API scan RFID/NFC yang menyimpan driver, device, kompartemen, koordinat, dan waktu scan.
-- Status scan per sesi tanker: `done` jika semua kompartemen dalam sesi tersebut sudah discan, `kurang` jika belum lengkap.
-
-## Stack
-
-- PHP 8.4 FPM Alpine
-- Laravel 13
-- Filament 5
-- MySQL 8.0
-- Nginx Alpine
-- Docker Compose
-
-## Menjalankan Dengan Docker
-
-Pastikan Docker dan Docker Compose sudah terpasang.
-
-1. Salin file environment:
-
-```bash
-cp .env.example .env
-```
-
-2. Pastikan `.env` memiliki `APP_KEY`. Konfigurasi database untuk Docker sudah diatur langsung di `docker-compose.yml`, jadi `.env` lokal boleh tetap memakai SQLite untuk `php artisan serve`.
-
-```dotenv
-APP_NAME="Scanner MT"
-APP_ENV=local
-APP_DEBUG=true
-APP_URL=http://localhost:8080
-```
-
-Docker Compose akan mengirim environment berikut ke container `app`:
-
-```dotenv
-DB_CONNECTION=mysql
-DB_HOST=db
-DB_PORT=3306
-DB_DATABASE=laravel
-DB_USERNAME=laravel
-DB_PASSWORD=secret
-
-SESSION_DRIVER=database
-QUEUE_CONNECTION=database
-CACHE_STORE=database
-```
-
-Catatan: `DB_HOST=db` dipakai karena aplikasi berjalan di dalam network Docker. Port `3307` hanya dipakai jika ingin mengakses MySQL dari host/laptop.
-
-3. Build dan jalankan container:
-
-```bash
-docker compose up -d --build
-```
-
-4. Generate app key:
-
-```bash
-docker compose exec app php artisan key:generate
-```
-
-5. Jalankan migration dan seeder:
-
-```bash
-docker compose exec app php artisan migrate --seed
-```
-
-6. Akses aplikasi:
-
-- Web: http://localhost:8080
-- Admin panel: http://localhost:8080/admin
-- API base URL: http://localhost:8080/api
-
-## Konfigurasi Docker
-
-Docker Compose menjalankan tiga service:
-
-| Service | Container | Fungsi | Port |
-| --- | --- | --- | --- |
-| `app` | `scannermt_app` | PHP-FPM Laravel | internal `9000` |
-| `web` | `scannermt_web` | Nginx reverse proxy ke PHP-FPM | host `8080` ke container `80` |
-| `db` | `scannermt_db` | MySQL 8.0 | host `3307` ke container `3306` |
-
-Konfigurasi database bawaan `docker-compose.yml`:
-
-```dotenv
-MYSQL_DATABASE=laravel
-MYSQL_ROOT_PASSWORD=secret
-MYSQL_USER=laravel
-MYSQL_PASSWORD=secret
-```
-
-Volume Docker:
-
-- Source code di-mount ke `/var/www/html`.
-- Data MySQL disimpan di volume `db_data`.
-
-Entrypoint container aplikasi (`docker/entrypoint.sh`) akan:
-
-- Menjalankan `composer install` jika folder `vendor/` belum ada.
-- Membuat folder runtime Laravel yang dibutuhkan.
-- Mengatur permission folder `storage` dan `bootstrap/cache` tanpa mengambil ownership dari host.
-- Menjalankan proses utama `php-fpm`.
-
-Konfigurasi Nginx ada di `docker/nginx/default.conf` dan mengarah ke folder `public/`.
-
-## Akun Dan Data Awal
-
-Seeder membuat akun admin default:
-
-```text
-Email: test@example.com
-Password: password
-```
-
-Seeder juga membuat data pilot:
-
-- Driver `DRV001` - Budi Santoso
-- Driver `DRV002` - Joko Prasetyo
-- Device `UNIWA-W999-01`
-- Mobil tangki `G 8123 XX` kapasitas 24 KL
-- RFID/NFC kompartemen:
-  - `NFC-COMP-001`
-  - `NFC-COMP-002`
-  - `NFC-COMP-003`
-
-## Penggunaan Admin Panel
-
-Buka http://localhost:8080/admin lalu login dengan akun seed. Menu utama yang tersedia:
-
-- Drivers: mengelola nomor driver, nama, role, nomor telepon, dan status aktif.
-- Devices: mengelola device scanner berdasarkan `device_uuid`.
-- Tankers: mengelola mobil tangki, nomor polisi, kapasitas, dan status.
-- Tanker Compartments: mengelola kompartemen, kapasitas, dan UID RFID/NFC.
-- Scan Logs: melihat hasil scan, lokasi, waktu scan, dan status kelengkapan scan.
+CEKDISIT adalah aplikasi untuk pencatatan scan RFID/NFC kompartemen mobil tangki.
 
 ## Dokumentasi Akses API
 
@@ -178,9 +41,15 @@ Body JSON:
 
 ```json
 {
-  "driver_no": "712D1717"
+  "driver_no": "712D1717",
+  "device_uuid": "63adafc2f137b5c0"
 }
 ```
+
+| Field | Keterangan |
+| --- | --- |
+| `driver_no` | Nomor driver (wajib) |
+| `device_uuid` | UUID device Android (wajib, harus terdaftar dan aktif di Master Data → Devices) |
 
 Response `200 OK`:
 
@@ -198,6 +67,13 @@ Response `200 OK`:
 ```
 
 Simpan `data.id` dari response untuk dipakai sebagai `driver_id` pada request scan dan riwayat.
+
+Response error:
+
+| HTTP | Kondisi |
+| --- | --- |
+| `403` | Device tidak terdaftar atau tidak aktif |
+| `404` | Driver tidak ditemukan atau tidak aktif |
 
 ### 2. Mengambil tanker tersedia
 
@@ -298,7 +174,18 @@ GET {{base_url}}/scan-history?driver_id=1&page=1&per_page=15
 
 Alias yang juga tersedia: `GET {{base_url}}/scan_history?driver_id=1`.
 
-Response `200 OK` mengembalikan data per halaman, diurutkan dari scan terbaru. `per_page` default `15` dan dibatasi maksimum `100`:
+Query parameter opsional:
+
+| Parameter | Keterangan |
+| --- | --- |
+| `driver_id` | ID driver (wajib) |
+| `search` | Cari nopol, rfid_uid, atau catatan |
+| `from` | Filter tanggal mulai (`YYYY-MM-DD`) |
+| `until` | Filter tanggal akhir (`YYYY-MM-DD`) |
+| `page` | Nomor halaman (default `1`) |
+| `per_page` | Jumlah data per halaman (default `15`, maksimum `100`) |
+
+Response `200 OK` mengembalikan data per halaman, diurutkan dari scan terbaru:
 
 ```json
 {
@@ -394,11 +281,172 @@ Response `200 OK`:
 | HTTP | Kondisi |
 | --- | --- |
 | `400` | `driver_id` tidak dikirim pada endpoint history |
+| `403` | Device tidak terdaftar atau tidak aktif (saat login) |
 | `404` | Driver tidak ditemukan/tidak aktif, device tidak ditemukan/tidak aktif, atau RFID tidak ditemukan |
 | `409` | Kompartemen sudah discan dalam sesi yang sama |
 | `422` | Payload tidak lolos validasi, driver/device/tanker tidak tersedia, atau koordinat di luar rentang |
 
 Response error umumnya memiliki `success: false` dan `message`. Error validasi Laravel juga menyertakan object `errors`.
+
+---
+
+## API Integrasi TMS
+
+Endpoint khusus untuk integrasi dengan TMS (Transport Management System). Data dikelompokkan per **ritase** (sesi scan yang sudah selesai), bukan per baris scan.
+
+### Konsep Ritase
+
+1 ritase = 1 kunjungan MT ke satu lokasi = 1 `scan_session` berstatus `completed`. Di dalamnya terdapat beberapa kompartemen yang di-scan.
+
+### GET /tms/scanlogs
+
+```http
+GET {{base_url}}/tms/scanlogs
+```
+
+Query parameter:
+
+| Parameter | Tipe | Keterangan |
+| --- | --- | --- |
+| `date` | `YYYY-MM-DD` | Filter tanggal ritase spesifik |
+| `from` | `YYYY-MM-DD` | Filter ritase dari tanggal |
+| `until` | `YYYY-MM-DD` | Filter ritase sampai tanggal |
+| `since_id` | int | Incremental sync — hanya return ritase dengan `id > since_id` |
+| `per_page` | int | Jumlah ritase per halaman (default `100`, maksimum `500`) |
+
+Contoh request:
+
+```http
+# Polling harian
+GET {{base_url}}/tms/scanlogs?date=2026-10-01
+
+# Incremental sync (efisien untuk TMS)
+GET {{base_url}}/tms/scanlogs?since_id=250
+
+# Range tanggal
+GET {{base_url}}/tms/scanlogs?from=2026-09-25&until=2026-10-01
+```
+
+Response `200 OK`:
+
+```json
+{
+  "success": true,
+  "message": "Data ritase berhasil diambil",
+  "data": [
+    {
+      "ritase_id": 5,
+      "tanggal": "2026-10-01",
+      "nopol": "B 1234 KT",
+      "kapasitas_kl": 24,
+      "driver": {
+        "id": 1,
+        "nama": "Budi Santoso",
+        "jabatan": "AMT 1"
+      },
+      "status": "done",
+      "status_text": "Complete",
+      "needs_action": true,
+      "action_text": "Perlu Tindakan",
+      "scanned_compartments": 4,
+      "total_compartments": 4,
+      "waktu_mulai": "2026-10-01 06:00:00",
+      "waktu_selesai": "2026-10-01 08:12:00",
+      "kompartemen": [
+        {
+          "no": 1,
+          "kapasitas_kl": 8.0,
+          "rfid_uid": "NFC-COMP-001",
+          "content_status": "kosong",
+          "catatan": null,
+          "scanned_at": "2026-10-01 06:05:00"
+        },
+        {
+          "no": 2,
+          "kapasitas_kl": 8.0,
+          "rfid_uid": "NFC-COMP-002",
+          "content_status": "sisa_minyak",
+          "catatan": "Sisa 200L",
+          "scanned_at": "2026-10-01 06:15:00"
+        }
+      ]
+    }
+  ],
+  "meta": {
+    "current_page": 1,
+    "last_page": 1,
+    "per_page": 100,
+    "total": 1
+  }
+}
+```
+
+### Field Response
+
+#### Level Ritase
+
+| Field | Tipe | Keterangan |
+| --- | --- | --- |
+| `ritase_id` | int | ID sesi scan (scan_session_id) |
+| `tanggal` | string | Tanggal ritase (`YYYY-MM-DD`) |
+| `nopol` | string | Nomor polisi MT |
+| `kapasitas_kl` | int | Kapasitas MT (KL) |
+| `driver.id` | int | ID driver |
+| `driver.nama` | string | Nama driver |
+| `driver.jabatan` | string | `AMT 1` (driver) atau `AMT 2` (helper) |
+| `status` | string | `done` jika semua kompartemen discan, `kurang` jika belum |
+| `status_text` | string | `Complete` atau `Belum Lengkap` |
+| `needs_action` | boolean | `true` jika ada kompartemen `sisa_minyak` atau `air` |
+| `action_text` | string | `Perlu Tindakan` atau `Ready` |
+| `scanned_compartments` | int | Jumlah kompartemen yang sudah discan |
+| `total_compartments` | int | Total kompartemen di MT |
+| `waktu_mulai` | string | Waktu sesi dimulai (`YYYY-MM-DD HH:mm:ss`) |
+| `waktu_selesai` | string | Waktu sesi selesai (`YYYY-MM-DD HH:mm:ss`) |
+| `kompartemen` | array | Detail kompartemen (lihat di bawah) |
+
+#### Level Kompartemen
+
+| Field | Tipe | Keterangan |
+| --- | --- | --- |
+| `no` | int | Nomor kompartemen |
+| `kapasitas_kl` | float | Kapasitas kompartemen (KL) |
+| `rfid_uid` | string | UID RFID kompartemen |
+| `content_status` | string | `kosong`, `air`, `sisa_minyak`, atau `lainnya` |
+| `catatan` | string/null | Catatan tambahan |
+| `scanned_at` | string | Waktu kompartemen discan |
+
+### Logika Status
+
+| Kondisi | `status` | `needs_action` | `action_text` |
+| --- | --- | --- | --- |
+| Semua kompartemen `kosong` | `done` | `false` | `Ready` |
+| Ada `sisa_minyak` atau `air` | `done` | `true` | `Perlu Tindakan` |
+| Scan belum lengkap | `kurang` | `true`/`false` | sesuai konten kompartemen |
+
+### Cara TMS Menggunakan Endpoint Ini
+
+**Polling harian** — ambil semua ritase tanggal tertentu:
+```
+GET /api/tms/scanlogs?date=2026-10-01
+```
+
+**Incremental sync** — efisien, hanya ambil data baru:
+```
+GET /api/tms/scanlogs?since_id=250
+→ TMS simpan last_ritase_id = 250
+→ Sync berikutnya: GET /api/tms/scanlogs?since_id=250
+```
+
+**Filter perlu tindakan** — gabungkan dengan parameter lain:
+```
+GET /api/tms/scanlogs?date=2026-10-01
+→ Filter di response: needs_action == true
+```
+
+**Range tanggal** — ambil data beberapa hari sekaligus:
+```
+GET /api/tms/scanlogs?from=2026-09-25&until=2026-10-01
+```
 
 ## Menjalankan API di Postman
 
