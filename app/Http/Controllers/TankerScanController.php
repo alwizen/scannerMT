@@ -92,7 +92,7 @@ class TankerScanController extends Controller
         if (! $compartment) {
             return response()->json([
                 'success' => false,
-                'message' => 'RFID/QR Kompartemen tidak terdaftar',
+                'message' => 'RFID Kompartemen tidak terdaftar',
             ], 404);
         }
 

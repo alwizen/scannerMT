@@ -335,7 +335,7 @@ class TankerCompartmentResource extends Resource
                     ->label('Kapasitas Comp 1')
                     ->suffix(' KL'),
                 TextEntry::make('rfid_uid')
-                    ->label('RFID/QR Comp 1'),
+                    ->label('RFIDComp 1'),
 
                 TextEntry::make('comp2_type')
                     ->label('Tipe Comp 2')
@@ -353,7 +353,7 @@ class TankerCompartmentResource extends Resource
                         optional($record->tanker->compartments->firstWhere('compartment_no', 2))->capacity_kl ?? '-'
                     ),
                 TextEntry::make('comp2_rfid')
-                    ->label('RFID/QR Comp 2')
+                    ->label('RFID Comp 2')
                     ->visible(fn (TankerCompartment $record) => ($record->tanker?->capacity_kl ?? 0) > 8)
                     ->getStateUsing(fn (TankerCompartment $record) => 
                         optional($record->tanker->compartments->firstWhere('compartment_no', 2))->rfid_uid ?? '-'
@@ -375,7 +375,7 @@ class TankerCompartmentResource extends Resource
                         optional($record->tanker->compartments->firstWhere('compartment_no', 3))->capacity_kl ?? '-'
                     ),
                 TextEntry::make('comp3_rfid')
-                    ->label('RFID/QR Comp 3')
+                    ->label('RFID Comp 3')
                     ->visible(fn (TankerCompartment $record) => ($record->tanker?->capacity_kl ?? 0) >= 24)
                     ->getStateUsing(fn (TankerCompartment $record) => 
                         optional($record->tanker->compartments->firstWhere('compartment_no', 3))->rfid_uid ?? '-'

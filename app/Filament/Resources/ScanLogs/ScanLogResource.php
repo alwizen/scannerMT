@@ -225,6 +225,21 @@ class ScanLogResource extends Resource
                 default => 'gray',
             });
 
+        $columns[] = TextColumn::make('tindakan')
+            ->label('Status MT')
+            ->badge()
+            ->getStateUsing(function (ScanLog $record) {
+                $scans = static::getScansForRecord($record);
+                $needsAction = $scans->contains(fn($scan) => in_array($scan->content_status, ['air', 'sisa_minyak'], true));
+
+                return $needsAction ? 'Butuh Tindakan' : 'Ready';
+            })
+            ->color(fn(string $state): string => match ($state) {
+                'Butuh Tindakan' => 'danger',
+                'Ready' => 'success',
+                default => 'gray',
+            });
+
         $columns[] = TextColumn::make('last_update')
             ->label('Last Update')
             ->getStateUsing(fn(ScanLog $record) => $record->last_update

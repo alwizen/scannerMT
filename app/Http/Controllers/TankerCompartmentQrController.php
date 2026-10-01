@@ -13,7 +13,7 @@ class TankerCompartmentQrController extends Controller
     public function download(Request $request, TankerCompartment $compartment): Response
     {
         if (empty($compartment->rfid_uid)) {
-            abort(404, 'RFID/QR Code tidak ditemukan untuk kompartemen ini');
+            abort(404, 'RFID tidak ditemukan untuk kompartemen ini');
         }
 
         $format = strtolower($request->query('format', 'png'));
