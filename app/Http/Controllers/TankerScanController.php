@@ -465,9 +465,34 @@ class TankerScanController extends Controller
         }
 
         $perPage = max(1, min((int) $request->query('per_page', 15), 100));
+        $search = $request->query('search');
+        $from = $request->query('from');
+        $until = $request->query('until');
 
-        $logs = ScanLog::with(['tankerCompartment.tanker', 'parkingLocation'])
-            ->where('driver_id', $driverId)
+        $query = ScanLog::with(['tankerCompartment.tanker', 'parkingLocation'])
+            ->where('driver_id', $driverId);
+
+        if ($search) {
+            $query->where(function ($q) use ($search) {
+                $q->whereHas('tankerCompartment.tanker', function ($tq) use ($search) {
+                    $tq->where('nopol', 'like', "%{$search}%");
+                })
+                ->orWhereHas('tankerCompartment', function ($cq) use ($search) {
+                    $cq->where('rfid_uid', 'like', "%{$search}%");
+                })
+                ->orWhere('note', 'like', "%{$search}%");
+            });
+        }
+
+        if ($from) {
+            $query->whereDate('scanned_at', '>=', $from);
+        }
+
+        if ($until) {
+            $query->whereDate('scanned_at', '<=', $until);
+        }
+
+        $logs = $query
             ->orderBy('scanned_at', 'desc')
             ->paginate($perPage);
 
