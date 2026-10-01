@@ -469,7 +469,7 @@ class TankerScanController extends Controller
         $from = $request->query('from');
         $until = $request->query('until');
 
-        $query = ScanLog::with(['tankerCompartment.tanker', 'parkingLocation'])
+        $query = ScanLog::with(['tankerCompartment.tanker', 'tankerCompartment.tanker.compartments', 'scanSession.tanker', 'parkingLocation'])
             ->where('driver_id', $driverId);
 
         if ($search) {
@@ -496,7 +496,35 @@ class TankerScanController extends Controller
             ->orderBy('scanned_at', 'desc')
             ->paginate($perPage);
 
-        $data = $logs->getCollection()->map(function ($log) {
+        // Bulk compute scan_status per session (avoids N+1)
+        $sessionIds = $logs->getCollection()
+            ->pluck('scan_session_id')
+            ->filter()
+            ->unique()
+            ->values();
+
+        $sessionStatusMap = collect();
+        if ($sessionIds->isNotEmpty()) {
+            // Get all scanned compartment IDs per session in one query
+            $scannedPerSession = ScanLog::whereIn('scan_session_id', $sessionIds)
+                ->get(['scan_session_id', 'tanker_compartment_id'])
+                ->groupBy('scan_session_id')
+                ->map(fn ($group) => $group->pluck('tanker_compartment_id')->unique()->count());
+
+            // Get total compartments per tanker via session (eager loaded)
+            $sessionTankers = \App\Models\ScanSession::with('tanker.compartments:id,tanker_id')
+                ->whereIn('id', $sessionIds)
+                ->get()
+                ->keyBy('id');
+
+            foreach ($sessionIds as $sid) {
+                $scanned = $scannedPerSession->get($sid, 0);
+                $total = $sessionTankers->get($sid)?->tanker?->compartments->count() ?? 0;
+                $sessionStatusMap[$sid] = ($total > 0 && $scanned >= $total) ? 'done' : 'kurang';
+            }
+        }
+
+        $data = $logs->getCollection()->map(function ($log) use ($sessionStatusMap) {
             $compartment = $log->tankerCompartment;
             $tanker = $compartment?->tanker;
 
@@ -525,7 +553,7 @@ class TankerScanController extends Controller
                         ? 'Di dalam lokasi parkir MT'
                         : 'Di luar lokasi parkir MT',
                 ],
-                'scan_status' => $log->scan_status,
+                'scan_status' => $sessionStatusMap->get($log->scan_session_id, 'kurang'),
             ];
         });
 
