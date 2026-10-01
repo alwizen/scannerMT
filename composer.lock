@@ -4,7 +4,7 @@
         "Read more about it at https://getcomposer.org/doc/01-basic-usage.md#installing-dependencies",
         "This file is @generated automatically"
     ],
-    "content-hash": "0d2dff255f46a551eef9127448a37766",
+    "content-hash": "56500ebdeaa904c99324c5380c9904d4",
     "packages": [
         {
             "name": "anourvalar/eloquent-serialize",
@@ -2540,6 +2540,74 @@
                 "source": "https://github.com/kirschbaum-development/eloquent-power-joins/tree/4.3.3"
             },
             "time": "2026-07-23T11:41:37+00:00"
+        },
+        {
+            "name": "laboiteacode/filament-logs-explorer",
+            "version": "v1.0.2",
+            "source": {
+                "type": "git",
+                "url": "https://github.com/La-boite-a-code/filament-logs-explorer.git",
+                "reference": "826b53faec2e7d87bada73aed1a87c2e3ebf5927"
+            },
+            "dist": {
+                "type": "zip",
+                "url": "https://api.github.com/repos/La-boite-a-code/filament-logs-explorer/zipball/826b53faec2e7d87bada73aed1a87c2e3ebf5927",
+                "reference": "826b53faec2e7d87bada73aed1a87c2e3ebf5927",
+                "shasum": ""
+            },
+            "require": {
+                "filament/filament": "^4.0|^5.0",
+                "illuminate/contracts": "^12.0|^13.0",
+                "php": "^8.2",
+                "spatie/laravel-package-tools": "^1.16"
+            },
+            "require-dev": {
+                "larastan/larastan": "^3.0",
+                "laravel/pint": "^1.18",
+                "orchestra/testbench": "^10.0|^11.0",
+                "pestphp/pest": "^3.0|^4.0",
+                "pestphp/pest-plugin-laravel": "^3.0|^4.0"
+            },
+            "type": "library",
+            "extra": {
+                "laravel": {
+                    "providers": [
+                        "LaBoiteACode\\FilamentLogsExplorer\\FilamentLogsExplorerServiceProvider"
+                    ]
+                }
+            },
+            "autoload": {
+                "psr-4": {
+                    "LaBoiteACode\\FilamentLogsExplorer\\": "src/"
+                }
+            },
+            "notification-url": "https://packagist.org/downloads/",
+            "license": [
+                "MIT"
+            ],
+            "authors": [
+                {
+                    "name": "Alexandre Ribes",
+                    "email": "alexandre@laboiteacode.fr",
+                    "role": "Developer"
+                }
+            ],
+            "description": "Read and search your Laravel log files without leaving your Filament panel.",
+            "homepage": "https://github.com/la-boite-a-code/filament-logs-explorer",
+            "keywords": [
+                "filament",
+                "filamentphp",
+                "laboiteacode",
+                "laravel",
+                "log-viewer",
+                "logging",
+                "logs"
+            ],
+            "support": {
+                "issues": "https://github.com/La-boite-a-code/filament-logs-explorer/issues",
+                "source": "https://github.com/La-boite-a-code/filament-logs-explorer/tree/v1.0.2"
+            },
+            "time": "2026-09-22T17:53:30+00:00"
         },
         {
             "name": "laravel/framework",
