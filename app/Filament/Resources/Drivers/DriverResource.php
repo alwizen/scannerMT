@@ -36,6 +36,8 @@ class DriverResource extends Resource
 
     protected static string | UnitEnum | null $navigationGroup = 'Master Data';
 
+    protected static ?int $navigationSort = 2;
+
     protected static ?string $modelLabel = 'AMT';
 
     protected static ?string $pluralModelLabel = 'AMT';

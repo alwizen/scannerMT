@@ -131,7 +131,7 @@ class TankerCompartmentResource extends Resource
                             ->label('Tipe Comp 1')
                             ->options([
                                 'rfid' => 'RFID',
-                                'qrcode' => 'QR Code',
+                                // 'qrcode' => 'QR Code',
                             ])
                             ->default('rfid')
                             ->required()
@@ -442,19 +442,19 @@ class TankerCompartmentResource extends Resource
                 TrashedFilter::make(),
             ])
             ->recordActions([
-                Action::make('download_qr')
-                    ->label('QR Code')
-                    ->icon('heroicon-o-qr-code')
-                    ->color('info')
-                    ->modalHeading(fn (TankerCompartment $record) => 'QR Code - ' . ($record->tanker?->nopol ?? 'MT'))
-                    ->modalSubmitAction(false)
-                    ->modalCancelActionLabel('Tutup')
-                    ->modalContent(function (TankerCompartment $record) {
-                        $compartments = $record->tanker?->compartments ?? collect([$record]);
-                        return view('filament.components.qr-code-modal', [
-                            'compartments' => $compartments,
-                        ]);
-                    }),
+                // Action::make('download_qr')
+                //     ->label('QR Code')
+                //     ->icon('heroicon-o-qr-code')
+                //     ->color('info')
+                //     ->modalHeading(fn (TankerCompartment $record) => 'QR Code - ' . ($record->tanker?->nopol ?? 'MT'))
+                //     ->modalSubmitAction(false)
+                //     ->modalCancelActionLabel('Tutup')
+                //     ->modalContent(function (TankerCompartment $record) {
+                //         $compartments = $record->tanker?->compartments ?? collect([$record]);
+                //         return view('filament.components.qr-code-modal', [
+                //             'compartments' => $compartments,
+                //         ]);
+                //     }),
                 ViewAction::make(),
                 EditAction::make()
                     ->after(function (TankerCompartment $record, array $data) {

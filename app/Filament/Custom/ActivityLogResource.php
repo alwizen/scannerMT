@@ -1,6 +1,6 @@
 <?php
 
-namespace App\Filament\Resources;
+namespace App\Filament\Custom;
 
 use Filament\Facades\Filament;
 use Filament\Forms\Components\DatePicker;
@@ -16,6 +16,10 @@ use Jacobtims\FilamentLogger\Resources\ActivityResource as BaseActivityResource;
 
 class ActivityLogResource extends BaseActivityResource
 {
+    protected static string | \UnitEnum | null $navigationGroup = 'Lain-lain';
+
+    protected static ?int $navigationSort = 3;
+
     public static function table(Table $table): Table
     {
         return $table
