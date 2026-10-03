@@ -5,18 +5,17 @@ namespace App\Filament\Resources\ScanLogs;
 use App\Filament\Resources\ScanLogs\Pages\ManageScanLogs;
 use App\Models\Driver;
 use App\Models\ScanLog;
-use App\Models\TankerCompartment;
 use App\Models\Tanker;
+use App\Models\TankerCompartment;
 use BackedEnum;
-use Filament\Actions\Action;
 use Filament\Actions\ActionGroup;
 use Filament\Actions\BulkActionGroup;
 use Filament\Actions\DeleteAction;
 use Filament\Actions\DeleteBulkAction;
 use Filament\Actions\EditAction;
 use Filament\Actions\ViewAction;
-use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\DatePicker;
+use Filament\Forms\Components\DateTimePicker;
 use Filament\Forms\Components\Select;
 use Filament\Forms\Components\TextInput;
 use Filament\Infolists\Components\TextEntry;
@@ -49,14 +48,19 @@ class ScanLogResource extends Resource
 
     protected static function getScansForRecord(ScanLog $record)
     {
+        $tankerId = $record->tanker_id ?? $record->tankerCompartment?->tanker_id;
+        $scanDate = $record->scan_date
+            ?? $record->scanned_at?->toDateString()
+            ?? now()->toDateString();
+
         $sessionKey = $record->scan_session_id ?? 'legacy';
-        $key = "{$record->driver_id}_{$record->tanker_id}_{$record->scan_date}_{$sessionKey}";
+        $key = "{$record->driver_id}_{$tankerId}_{$scanDate}_{$sessionKey}";
 
         if (! isset(static::$scansCache[$key])) {
             $query = ScanLog::query()
                 ->where('driver_id', $record->driver_id)
-                ->whereDate('scanned_at', $record->scan_date)
-                ->whereHas('tankerCompartment', fn($q) => $q->where('tanker_id', $record->tanker_id));
+                ->whereDate('scanned_at', $scanDate)
+                ->whereHas('tankerCompartment', fn ($q) => $q->where('tanker_id', $tankerId));
 
             if ($record->scan_session_id) {
                 $query->where('scan_session_id', $record->scan_session_id);
@@ -67,10 +71,30 @@ class ScanLogResource extends Resource
             static::$scansCache[$key] = $query
                 ->with(['tankerCompartment', 'parkingLocation'])
                 ->get()
-                ->keyBy(fn($item) => $item->tankerCompartment?->compartment_no);
+                ->keyBy(fn ($item) => $item->tankerCompartment?->compartment_no);
         }
 
         return static::$scansCache[$key];
+    }
+
+    protected static function formatContentStatus(?string $status): string
+    {
+        return match ($status) {
+            'sisa_minyak' => 'Sisa Minyak',
+            'kosong' => 'Kosong',
+            'air' => 'Air',
+            'lainnya' => 'Lainnya',
+            default => '-',
+        };
+    }
+
+    protected static function contentStatusColor(?string $status): string
+    {
+        return match ($status) {
+            'air', 'sisa_minyak' => 'danger',
+            'kosong' => 'success',
+            default => 'gray',
+        };
     }
 
     public static function form(Schema $schema): Schema
@@ -119,10 +143,7 @@ class ScanLogResource extends Resource
                     ->label('Tanker compartment'),
                 TextEntry::make('content_status')
                     ->label('Isi Kompartemen')
-                    ->formatStateUsing(fn($state) => match ($state) {
-                        'sisa_minyak' => 'Sisa Minyak',
-                        default => ucfirst((string) $state),
-                    })
+                    ->formatStateUsing(fn ($state) => static::formatContentStatus($state))
                     ->placeholder('-'),
                 TextEntry::make('note')
                     ->label('Catatan')
@@ -133,13 +154,31 @@ class ScanLogResource extends Resource
                 TextEntry::make('longitude')
                     ->numeric()
                     ->placeholder('-'),
+                TextEntry::make('detail_kompartemen')
+                    ->label('Isi per Kompartemen')
+                    ->listWithLineBreaks()
+                    ->getStateUsing(function (ScanLog $record): array {
+                        $scans = static::getScansForRecord($record)
+                            ->sortBy(fn ($scan) => $scan->tankerCompartment?->compartment_no ?? PHP_INT_MAX);
+
+                        return $scans->map(function ($scan) {
+                            $compNo = $scan->tankerCompartment?->compartment_no ?? '-';
+                            $scannedAt = $scan->scanned_at
+                                ? Carbon::parse($scan->scanned_at)->format('H:i:s')
+                                : '-';
+                            $content = static::formatContentStatus($scan->content_status);
+
+                            return "Komp {$compNo} ({$scannedAt}): {$content}";
+                        })->values()->all();
+                    })
+                    ->placeholder('-'),
                 TextEntry::make('scan_status')
                     ->label('Status Scan')
-                    ->formatStateUsing(fn($state) => $state === 'done' ? 'Done' : 'Belum Lengkap'),
+                    ->formatStateUsing(fn ($state) => $state === 'done' ? 'Done' : 'Belum Lengkap'),
                 TextEntry::make('is_inside_geofence')
                     ->label('Geofence Lokasi')
                     ->badge()
-                    ->color(fn($state) => $state ? 'success' : 'danger'),
+                    ->color(fn ($state) => $state ? 'success' : 'danger'),
                 TextEntry::make('scanned_at')
                     ->dateTime(),
                 TextEntry::make('created_at')
@@ -162,7 +201,7 @@ class ScanLogResource extends Resource
             TextColumn::make('driver.role')
                 ->label('Role/Jabatan')
                 ->badge()
-                ->formatStateUsing(fn($state) => match ($state) {
+                ->formatStateUsing(fn ($state) => match ($state) {
                     'driver' => 'AMT 1',
                     'helper' => 'AMT 2',
                     default => $state,
@@ -175,7 +214,7 @@ class ScanLogResource extends Resource
 
             TextColumn::make('capacity_kl')
                 ->label('Kapasitas')
-                ->formatStateUsing(fn($state) => $state ? $state . ' KL' : '-')
+                ->formatStateUsing(fn ($state) => $state ? $state.' KL' : '-')
                 ->sortable(),
 
             TextColumn::make('device.name')
@@ -198,8 +237,8 @@ class ScanLogResource extends Resource
             $compNo = $i;
             $columns[] = TextColumn::make("komp_{$compNo}")
                 ->label("Komp {$compNo}")
-                ->when($compNo === 4, fn(TextColumn $column) => $column->toggleable(isToggledHiddenByDefault: true))
-                ->badge(fn(ScanLog $record) => static::getScansForRecord($record)->has($compNo))
+                ->when($compNo === 4, fn (TextColumn $column) => $column->toggleable(isToggledHiddenByDefault: true))
+                ->badge(fn (ScanLog $record) => static::getScansForRecord($record)->has($compNo))
                 ->getStateUsing(function (ScanLog $record) use ($compNo) {
                     $compLog = static::getScansForRecord($record)->get($compNo);
 
@@ -207,7 +246,20 @@ class ScanLogResource extends Resource
                         ? Carbon::parse($compLog->scanned_at)->format('H:i:s')
                         : '-';
                 })
-                ->color(fn(ScanLog $record) => static::getScansForRecord($record)->has($compNo) ? 'success' : 'gray');
+                ->color(fn (ScanLog $record) => static::getScansForRecord($record)->has($compNo) ? 'success' : 'gray');
+
+            $columns[] = TextColumn::make("isi_komp_{$compNo}")
+                ->label("Isi Komp {$compNo}")
+                ->when($compNo === 4, fn (TextColumn $column) => $column->toggleable(isToggledHiddenByDefault: true))
+                ->badge(fn (ScanLog $record) => static::getScansForRecord($record)->has($compNo))
+                ->getStateUsing(function (ScanLog $record) use ($compNo) {
+                    $compLog = static::getScansForRecord($record)->get($compNo);
+
+                    return static::formatContentStatus($compLog?->content_status);
+                })
+                ->color(fn (ScanLog $record) => static::contentStatusColor(
+                    static::getScansForRecord($record)->get($compNo)?->content_status
+                ));
         }
 
         $columns[] = TextColumn::make('status')
@@ -219,7 +271,7 @@ class ScanLogResource extends Resource
 
                 return ($totalComps > 0 && $scans->count() >= $totalComps) ? 'Complete' : 'Belum Lengkap';
             })
-            ->color(fn(string $state): string => match ($state) {
+            ->color(fn (string $state): string => match ($state) {
                 'Complete' => 'success',
                 'Belum Lengkap' => 'warning',
                 default => 'gray',
@@ -230,11 +282,11 @@ class ScanLogResource extends Resource
             ->badge()
             ->getStateUsing(function (ScanLog $record) {
                 $scans = static::getScansForRecord($record);
-                $needsAction = $scans->contains(fn($scan) => in_array($scan->content_status, ['air', 'sisa_minyak'], true));
+                $needsAction = $scans->contains(fn ($scan) => in_array($scan->content_status, ['air', 'sisa_minyak'], true));
 
                 return $needsAction ? 'Butuh Tindakan' : 'Ready';
             })
-            ->color(fn(string $state): string => match ($state) {
+            ->color(fn (string $state): string => match ($state) {
                 'Butuh Tindakan' => 'danger',
                 'Ready' => 'success',
                 default => 'gray',
@@ -242,7 +294,7 @@ class ScanLogResource extends Resource
 
         $columns[] = TextColumn::make('last_update')
             ->label('Last Update')
-            ->getStateUsing(fn(ScanLog $record) => $record->last_update
+            ->getStateUsing(fn (ScanLog $record) => $record->last_update
                 ? Carbon::parse($record->last_update)->format('d M Y H:i:s')
                 : '-');
 
@@ -290,11 +342,11 @@ class ScanLogResource extends Resource
                         return $query
                             ->when(
                                 $data['from'] ?? null,
-                                fn(Builder $query, $date): Builder => $query->whereDate('scan_logs.scanned_at', '>=', $date),
+                                fn (Builder $query, $date): Builder => $query->whereDate('scan_logs.scanned_at', '>=', $date),
                             )
                             ->when(
                                 $data['until'] ?? null,
-                                fn(Builder $query, $date): Builder => $query->whereDate('scan_logs.scanned_at', '<=', $date),
+                                fn (Builder $query, $date): Builder => $query->whereDate('scan_logs.scanned_at', '<=', $date),
                             );
                     }),
                 Filter::make('driver_id')
@@ -302,30 +354,30 @@ class ScanLogResource extends Resource
                     ->schema([
                         Select::make('value')
                             ->label('Driver')
-                            ->options(fn(): array => Driver::query()
+                            ->options(fn (): array => Driver::query()
                                 ->orderBy('name')
                                 ->pluck('name', 'id')
                                 ->all())
                             ->searchable(),
                     ])
-                    ->query(fn(Builder $query, array $data): Builder => $query->when(
+                    ->query(fn (Builder $query, array $data): Builder => $query->when(
                         $data['value'] ?? null,
-                        fn(Builder $query, $driverId): Builder => $query->where('scan_logs.driver_id', $driverId),
+                        fn (Builder $query, $driverId): Builder => $query->where('scan_logs.driver_id', $driverId),
                     )),
                 Filter::make('tanker_id')
                     ->label('Mobil Tangki')
                     ->schema([
                         Select::make('value')
                             ->label('Tanker')
-                            ->options(fn(): array => Tanker::query()
+                            ->options(fn (): array => Tanker::query()
                                 ->orderBy('nopol')
                                 ->pluck('nopol', 'id')
                                 ->all())
                             ->searchable(),
                     ])
-                    ->query(fn(Builder $query, array $data): Builder => $query->when(
+                    ->query(fn (Builder $query, array $data): Builder => $query->when(
                         $data['value'] ?? null,
-                        fn(Builder $query, $tankerId): Builder => $query->where('tanker_compartments.tanker_id', $tankerId),
+                        fn (Builder $query, $tankerId): Builder => $query->where('tanker_compartments.tanker_id', $tankerId),
                     )),
             ])
             ->recordActions([
@@ -334,13 +386,13 @@ class ScanLogResource extends Resource
                     EditAction::make(),
                     DeleteAction::make(),
                 ])
-                    ->icon(Heroicon::OutlinedBars3)
+                    ->icon(Heroicon::OutlinedBars3),
 
             ])
             ->toolbarActions([
                 BulkActionGroup::make([
                     DeleteBulkAction::make(),
-                    ExportBulkAction::make()
+                    ExportBulkAction::make(),
                 ]),
             ]);
     }
