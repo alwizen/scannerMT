@@ -113,9 +113,13 @@ class ScanSessionResource extends Resource
                     }),
                 TextEntry::make('action_status')
                     ->label('Status TL')
-                    ->state(fn(ScanSession $record): string => $record->isActionHandled() ? 'Sudah Di TL' : 'Belum Ditangani')
+                    ->state(fn(ScanSession $record): string => $record->actionStatus())
                     ->badge()
-                    ->color(fn(ScanSession $record): string => $record->isActionHandled() ? 'info' : 'danger'),
+                    ->color(fn(string $state): string => match ($state) {
+                        'Sudah Di TL' => 'info',
+                        'Belum Ditangani' => 'danger',
+                        default => 'gray',
+                    }),
                 TextEntry::make('action_note')
                     ->label('Catatan Tindakan')
                     ->placeholder('-')
@@ -192,8 +196,12 @@ class ScanSessionResource extends Resource
                 TextColumn::make('action_status')
                     ->label('Status TL')
                     ->badge()
-                    ->state(fn(ScanSession $record): string => $record->isActionHandled() ? 'Sudah Di TL' : 'Belum Ditangani')
-                    ->color(fn(ScanSession $record): string => $record->isActionHandled() ? 'info' : 'danger'),
+                    ->state(fn(ScanSession $record): string => $record->actionStatus())
+                    ->color(fn(string $state): string => match ($state) {
+                        'Sudah Di TL' => 'info',
+                        'Belum Ditangani' => 'danger',
+                        default => 'gray',
+                    }),
                 TextColumn::make('action_handled_at')
                     ->label('Waktu Ditangani')
                     ->dateTime('d M Y H:i')
@@ -285,8 +293,7 @@ class ScanSessionResource extends Resource
             ->bulkActions([])
             ->defaultSort('action_handled_at', 'desc')
             ->modifyQueryUsing(function (Builder $query): Builder {
-                // Riwayat Tindak Lanjut: tampilkan semua session, fokus pada yang sudah/belum di TL
-                return $query->with([
+                return $query->requiresAction()->with([
                     'driver:id,name,role',
                     'device:id,name',
                     'tanker:id,nopol,capacity_kl',

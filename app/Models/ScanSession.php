@@ -8,6 +8,8 @@ use Illuminate\Database\Eloquent\Relations\HasMany;
 
 class ScanSession extends Model
 {
+    public const ACTION_REQUIRED_CONTENT_STATUSES = ['air', 'sisa_minyak'];
+
     protected $fillable = [
         'driver_id',
         'device_id',
@@ -60,9 +62,41 @@ class ScanSession extends Model
         return filled($this->action_note) || filled($this->action_handled_at);
     }
 
+    public function requiresAction(): bool
+    {
+        if ($this->relationLoaded('scanLogs')) {
+            return $this->scanLogs->contains(fn(ScanLog $scanLog) => in_array(
+                $scanLog->content_status,
+                self::ACTION_REQUIRED_CONTENT_STATUSES,
+                true,
+            ));
+        }
+
+        return $this->scanLogs()
+            ->whereIn('content_status', self::ACTION_REQUIRED_CONTENT_STATUSES)
+            ->exists();
+    }
+
+    public function actionStatus(): string
+    {
+        if (! $this->requiresAction()) {
+            return 'Tidak Perlu Tindakan';
+        }
+
+        return $this->isActionHandled() ? 'Sudah Di TL' : 'Belum Ditangani';
+    }
+
+    public function scopeRequiresAction($query)
+    {
+        return $query->whereHas('scanLogs', fn($logs) => $logs->whereIn(
+            'content_status',
+            self::ACTION_REQUIRED_CONTENT_STATUSES,
+        ));
+    }
+
     public function scopeActionHandled($query)
     {
-        return $query->where(function ($q) {
+        return $query->requiresAction()->where(function ($q) {
             $q->whereNotNull('action_note')
                 ->orWhereNotNull('action_handled_at');
         });
@@ -70,7 +104,8 @@ class ScanSession extends Model
 
     public function scopeActionPending($query)
     {
-        return $query->whereNull('action_note')
+        return $query->requiresAction()
+            ->whereNull('action_note')
             ->whereNull('action_handled_at');
     }
 }

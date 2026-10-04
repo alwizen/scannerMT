@@ -19,7 +19,7 @@ class ScanMTTable extends TableWidget
 
     protected static ?string $heading = 'Realtime Monitoring Pretrip Mainhole';
 
-    protected int | string | array $columnSpan = 'full';
+    protected int|string|array $columnSpan = 'full';
 
     protected static ?int $sort = 1;
 
@@ -54,7 +54,31 @@ class ScanMTTable extends TableWidget
     protected function recordNeedsAction(ScanLog $record): bool
     {
         return $this->getScansForRecord($record)
-            ->contains(fn($scan) => in_array($scan->content_status, ['air', 'sisa_minyak'], true));
+            ->contains(fn($scan) => in_array(
+                $scan->content_status,
+                ScanSession::ACTION_REQUIRED_CONTENT_STATUSES,
+                true,
+            ));
+    }
+
+    protected function formatContentStatus(?string $status): string
+    {
+        return match ($status) {
+            'sisa_minyak' => 'Sisa Minyak',
+            'kosong' => 'Kosong',
+            'air' => 'Air',
+            'lainnya' => 'Lainnya',
+            default => '-',
+        };
+    }
+
+    protected function contentStatusColor(?string $status): string
+    {
+        return match ($status) {
+            'air', 'sisa_minyak' => 'danger',
+            'kosong' => 'success',
+            default => 'gray',
+        };
     }
 
     protected function recordActionNote(ScanLog $record): ?string
@@ -93,6 +117,11 @@ class ScanMTTable extends TableWidget
         $maxCompartments = max(4, TankerCompartment::max('compartment_no') ?? 4);
 
         $columns = [
+            TextColumn::make('index')
+                ->label('#')
+                ->rowIndex()
+                ->width('w-12')
+                ->sortable(false),
             TextColumn::make('driver.name')
                 ->label('Nama AMT')
                 ->description(fn(ScanLog $record): string => match ($record->driver?->role) {
@@ -100,8 +129,13 @@ class ScanMTTable extends TableWidget
                     'helper' => 'AMT 2',
                     default => '-',
                 })
-                ->sortable()
                 ->searchable(),
+
+            TextColumn::make('scan_session_id')
+                ->label('Session ID')
+                ->badge()
+                ->color('warning')
+                ->getStateUsing(fn(ScanLog $record) => $record->scan_session_id ? "#{$record->scan_session_id}" : '-'),
 
             TextColumn::make('nopol')
                 ->label('Nopol MT')
@@ -126,12 +160,14 @@ class ScanMTTable extends TableWidget
                     if ($record->latitude && $record->longitude) {
                         return "{$record->latitude}, {$record->longitude}";
                     }
+
                     return '-';
                 })
                 ->description(function (ScanLog $record) {
                     if (! $record->latitude || ! $record->longitude) {
                         return null;
                     }
+
                     return $record->is_inside_geofence
                         ? 'Di Dalam Area'
                         : 'Di Luar Area';
@@ -145,35 +181,26 @@ class ScanMTTable extends TableWidget
                 ->when($compNo === 4, fn(TextColumn $column) => $column->toggleable(isToggledHiddenByDefault: true))
                 ->badge(fn(ScanLog $record) => $this->getScansForRecord($record)->has($compNo))
                 ->getStateUsing(function (ScanLog $record) use ($compNo) {
-                    $scans = $this->getScansForRecord($record);
-                    $compLog = $scans->get($compNo);
-
-                    if (! $compLog || ! $compLog->scanned_at) {
-                        return '-';
-                    }
-
-                    $scannedAt = Carbon::parse($compLog->scanned_at)->format('H:i:s');
-                    $contentStatus = match ($compLog->content_status) {
-                        'sisa_minyak' => 'Sisa Minyak',
-                        'kosong' => 'Kosong',
-                        'air' => 'Air',
-                        'lainnya' => 'Lainnya',
-                        default => null,
-                    };
-
-                    return $contentStatus ? "{$scannedAt} - {$contentStatus}" : $scannedAt;
-                })
-                ->color(function (ScanLog $record) use ($compNo) {
                     $compLog = $this->getScansForRecord($record)->get($compNo);
 
-                    if (! $compLog) {
-                        return 'gray';
-                    }
+                    return $compLog?->scanned_at
+                        ? Carbon::parse($compLog->scanned_at)->format('H:i:s')
+                        : '-';
+                })
+                ->color(fn(ScanLog $record) => $this->getScansForRecord($record)->has($compNo) ? 'success' : 'gray');
 
-                    return in_array($compLog->content_status, ['air', 'sisa_minyak'], true)
-                        ? 'danger'
-                        : 'success';
-                });
+            $columns[] = TextColumn::make("isi_komp_{$compNo}")
+                ->label("Isi Komp {$compNo}")
+                ->when($compNo === 4, fn(TextColumn $column) => $column->toggleable(isToggledHiddenByDefault: true))
+                ->badge(fn(ScanLog $record) => $this->getScansForRecord($record)->has($compNo))
+                ->getStateUsing(function (ScanLog $record) use ($compNo) {
+                    $compLog = $this->getScansForRecord($record)->get($compNo);
+
+                    return $this->formatContentStatus($compLog?->content_status);
+                })
+                ->color(fn(ScanLog $record) => $this->contentStatusColor(
+                    $this->getScansForRecord($record)->get($compNo)?->content_status
+                ));
         }
 
         $columns[] = TextColumn::make('status')
@@ -226,7 +253,7 @@ class ScanMTTable extends TableWidget
 
         return $table
             ->poll('3s')
-            ->paginated([25, 50, 100])
+            ->paginated([25, 50, 100, 'all'])
             ->query(function (): Builder {
                 [$startDate, $endDate] = $this->getFilterDateRange();
 

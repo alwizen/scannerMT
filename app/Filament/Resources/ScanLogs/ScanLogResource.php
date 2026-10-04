@@ -104,7 +104,11 @@ class ScanLogResource extends Resource
     protected static function recordNeedsAction(ScanLog $record): bool
     {
         return static::getScansForRecord($record)
-            ->contains(fn($scan) => in_array($scan->content_status, ['air', 'sisa_minyak'], true));
+            ->contains(fn($scan) => in_array(
+                $scan->content_status,
+                ScanSession::ACTION_REQUIRED_CONTENT_STATUSES,
+                true,
+            ));
     }
 
     protected static function recordActionNote(ScanLog $record): ?string
@@ -180,6 +184,12 @@ class ScanLogResource extends Resource
                     ->label('Driver'),
                 TextEntry::make('device.name')
                     ->label('Device'),
+                TextEntry::make('scan_session_id')
+                    ->label('Session ID')
+                    ->badge()
+                    ->color('warning')
+                    ->formatStateUsing(fn($state) => $state ? "#{$state}" : '-')
+                    ->placeholder('-'),
                 TextEntry::make('tankerCompartment.id')
                     ->label('Tanker compartment'),
                 TextEntry::make('content_status')
@@ -243,23 +253,30 @@ class ScanLogResource extends Resource
         $maxCompartments = max(4, TankerCompartment::max('compartment_no') ?? 4);
         $columns = [
 
-        TextColumn::make('scan_date')
+            TextColumn::make('scan_date')
                 ->label('Tanggal')
                 ->date('d M Y')
                 ->sortable(),
-                
+
             TextColumn::make('driver.name')
                 ->label('Nama AMT')
                 ->searchable(),
 
             TextColumn::make('driver.role')
-                ->label('Jabatan')
+                ->label('Role/Jabatan')
                 ->badge()
                 ->formatStateUsing(fn($state) => match ($state) {
                     'driver' => 'AMT 1',
                     'helper' => 'AMT 2',
                     default => $state,
                 }),
+
+            TextColumn::make('scan_session_id')
+                ->label('Session ID')
+                ->badge()
+                ->color('warning')
+                ->getStateUsing(fn(ScanLog $record) => $record->scan_session_id ? "#{$record->scan_session_id}" : '-'),
+
             TextColumn::make('nopol')
                 ->label('Nopol MT')
                 ->badge()
@@ -388,6 +405,7 @@ class ScanLogResource extends Resource
 
         return $table
             ->columns($columns)
+            ->paginated([25, 50, 100,])
             ->query(function (): Builder {
                 return ScanLog::query()
                     ->join('tanker_compartments', 'scan_logs.tanker_compartment_id', '=', 'tanker_compartments.id')

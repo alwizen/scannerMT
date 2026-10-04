@@ -48,7 +48,7 @@ class RitaseHistorySeeder extends Seeder
         $startDate = $endDate->copy()->subMonths($months)->startOfDay();
 
         $allowedDriverIds = collect(explode(',', (string) env('RITASE_DRIVER_IDS', '6,10,20,25,28,30')))
-            ->map(fn ($id) => (int) trim($id))
+            ->map(fn($id) => (int) trim($id))
             ->filter()
             ->values();
 
@@ -57,7 +57,7 @@ class RitaseHistorySeeder extends Seeder
             ->get(['id', 'role']);
 
         $allowedDeviceNames = collect(explode(',', (string) env('RITASE_DEVICE_NAMES', 'UNIWA')))
-            ->map(fn ($name) => trim($name))
+            ->map(fn($name) => trim($name))
             ->filter()
             ->values();
 
@@ -65,7 +65,7 @@ class RitaseHistorySeeder extends Seeder
             ->where(function ($query) use ($allowedDeviceNames) {
                 $query->where(function ($q) use ($allowedDeviceNames) {
                     foreach ($allowedDeviceNames as $name) {
-                        $q->orWhere('name', 'like', '%'.$name.'%');
+                        $q->orWhere('name', 'like', '%' . $name . '%');
                     }
                 });
             })
@@ -79,7 +79,7 @@ class RitaseHistorySeeder extends Seeder
 
         $missingDrivers = $allowedDriverIds->diff($drivers->pluck('id'))->values();
         if ($missingDrivers->isNotEmpty()) {
-            $this->command->warn('Driver ID tidak ditemukan/tidak aktif: '.$missingDrivers->implode(', '));
+            $this->command->warn('Driver ID tidak ditemukan/tidak aktif: ' . $missingDrivers->implode(', '));
         }
 
         $tankers = Tanker::query()
@@ -100,14 +100,14 @@ class RitaseHistorySeeder extends Seeder
 
         $this->command->info("Periode: {$startDate->toDateString()} s.d. {$endDate->toDateString()}");
         $this->command->info("Ritase per tanker per hari: {$minPerTanker}-{$maxPerTanker} (independen)");
-        $this->command->info('Estimasi ritase/hari: '.($tankers->count() * $minPerTanker).' - '.($tankers->count() * $maxPerTanker));
-        $this->command->info('Tanker dengan NFC: '.$tankers->pluck('nopol')->implode(', '));
-        $this->command->info('Driver aktif: '.$drivers->count().', Device (UNIWA): '.$devices->count());
+        $this->command->info('Estimasi ritase/hari: ' . ($tankers->count() * $minPerTanker) . ' - ' . ($tankers->count() * $maxPerTanker));
+        $this->command->info('Tanker dengan NFC: ' . $tankers->pluck('nopol')->implode(', '));
+        $this->command->info('Driver aktif: ' . $drivers->count() . ', Device (UNIWA): ' . $devices->count());
         $this->command->info('Isi kompartemen: semua kosong');
 
         $this->purgeRange($startDate, $endDate);
 
-        $driverWeights = $drivers->mapWithKeys(fn (Driver $driver) => [
+        $driverWeights = $drivers->mapWithKeys(fn(Driver $driver) => [
             $driver->id => $driver->role === 'driver' ? 3 : 1,
         ])->all();
         $driverPool = [];
@@ -236,7 +236,7 @@ class RitaseHistorySeeder extends Seeder
         ScanLog::whereIn('scan_session_id', $sessionIds)->delete();
         ScanSession::whereIn('id', $sessionIds)->delete();
 
-        $this->command->info('Data ritase lama pada rentang tersebut dihapus: '.$sessionIds->count().' session.');
+        $this->command->info('Data ritase lama pada rentang tersebut dihapus: ' . $sessionIds->count() . ' session.');
     }
 
     /**
@@ -249,9 +249,25 @@ class RitaseHistorySeeder extends Seeder
     {
         // Range jam operasional: 05:00 - 17:00
         $allSlots = [
-            '05:00', '05:30', '06:00', '06:30', '07:00', '07:30', '08:00',
-            '08:30', '09:00', '09:30', '10:00',
-            '13:00', '13:30', '14:00', '14:30', '15:00', '15:30', '16:00', '16:30',
+            '05:00',
+            '05:30',
+            '06:00',
+            '06:30',
+            '07:00',
+            '07:30',
+            '08:00',
+            '08:30',
+            '09:00',
+            '09:30',
+            '10:00',
+            '13:00',
+            '13:30',
+            '14:00',
+            '14:30',
+            '15:00',
+            '15:30',
+            '16:00',
+            '16:30',
         ];
 
         // Acak urutan lalu ambil sejumlah ritaseCount, lalu sort
