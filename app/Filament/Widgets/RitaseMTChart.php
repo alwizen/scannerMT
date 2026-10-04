@@ -59,8 +59,13 @@ class RitaseMTChart extends ChartWidget
         return [
             'scales' => [
                 'y' => [
+                    'beginAtZero' => true,
+                    'min' => 0,
+                    'max' => 8,
                     'ticks' => [
-                        'display' => false,
+                        'display' => true,
+                        'stepSize' => 1,
+                        'precision' => 0,
                     ],
                 ],
             ],

@@ -3,6 +3,7 @@
 namespace App\Filament\Widgets;
 
 use App\Models\ScanLog;
+use App\Models\ScanSession;
 use App\Models\TankerCompartment;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Table;
@@ -48,6 +49,43 @@ class ScanMTTable extends TableWidget
         }
 
         return static::$scansCache[$key];
+    }
+
+    protected function recordNeedsAction(ScanLog $record): bool
+    {
+        return $this->getScansForRecord($record)
+            ->contains(fn($scan) => in_array($scan->content_status, ['air', 'sisa_minyak'], true));
+    }
+
+    protected function recordActionNote(ScanLog $record): ?string
+    {
+        if (filled($record->action_note)) {
+            return $record->action_note;
+        }
+
+        if ($record->scan_session_id) {
+            return ScanSession::whereKey($record->scan_session_id)->value('action_note');
+        }
+
+        return null;
+    }
+
+    protected function recordActionHandled(ScanLog $record): bool
+    {
+        if (filled($record->action_note) || filled($record->action_handled_at)) {
+            return true;
+        }
+
+        if ($record->scan_session_id) {
+            return ScanSession::whereKey($record->scan_session_id)
+                ->where(function ($query) {
+                    $query->whereNotNull('action_note')
+                        ->orWhereNotNull('action_handled_at');
+                })
+                ->exists();
+        }
+
+        return false;
     }
 
     public function table(Table $table): Table
@@ -158,15 +196,24 @@ class ScanMTTable extends TableWidget
             ->label('Status MT')
             ->badge()
             ->getStateUsing(function (ScanLog $record) {
-                $scans = $this->getScansForRecord($record);
-                $needsAction = $scans->contains(fn($scan) => in_array($scan->content_status, ['air', 'sisa_minyak'], true));
+                if (! $this->recordNeedsAction($record)) {
+                    return 'Ready';
+                }
 
-                return $needsAction ? 'Butuh Tindakan' : 'Ready';
+                // Sudah ditangani (TL) → status kembali Ready
+                return $this->recordActionHandled($record) ? 'Ready' : 'Butuh Tindakan';
             })
             ->color(fn(string $state): string => match ($state) {
                 'Butuh Tindakan' => 'danger',
                 'Ready' => 'success',
                 default => 'gray',
+            })
+            ->tooltip(function (ScanLog $record): ?string {
+                if ($this->recordNeedsAction($record) && $this->recordActionHandled($record)) {
+                    return $this->recordActionNote($record) ?: 'Tindakan sudah dilakukan';
+                }
+
+                return null;
             });
 
         $columns[] = TextColumn::make('last_update')
@@ -188,6 +235,7 @@ class ScanMTTable extends TableWidget
                     ->when($endDate, fn(Builder $query) => $query->where('scan_logs.scanned_at', '<=', $endDate))
                     ->join('tanker_compartments', 'scan_logs.tanker_compartment_id', '=', 'tanker_compartments.id')
                     ->join('tankers', 'tanker_compartments.tanker_id', '=', 'tankers.id')
+                    ->leftJoin('scan_sessions', 'scan_logs.scan_session_id', '=', 'scan_sessions.id')
                     ->select([
                         DB::raw('MAX(scan_logs.id) as id'),
                         'scan_logs.driver_id',
@@ -202,6 +250,9 @@ class ScanMTTable extends TableWidget
                         DB::raw('MAX(scan_logs.longitude) as longitude'),
                         DB::raw('MAX(scan_logs.is_inside_geofence) as is_inside_geofence'),
                         DB::raw('MAX(scan_logs.parking_location_id) as parking_location_id'),
+                        DB::raw('MAX(scan_sessions.action_note) as action_note'),
+                        DB::raw('MAX(scan_sessions.action_handled_at) as action_handled_at'),
+                        DB::raw('MAX(scan_sessions.action_handled_by) as action_handled_by'),
                     ])
                     ->groupBy([
                         'scan_logs.driver_id',
