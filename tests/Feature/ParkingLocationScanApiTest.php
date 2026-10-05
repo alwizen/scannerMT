@@ -9,6 +9,7 @@ use App\Models\ScanSession;
 use App\Models\Tanker;
 use App\Models\TankerCompartment;
 use Illuminate\Foundation\Testing\RefreshDatabase;
+use Illuminate\Support\Facades\Http;
 use Tests\TestCase;
 
 class ParkingLocationScanApiTest extends TestCase
@@ -259,14 +260,39 @@ class ParkingLocationScanApiTest extends TestCase
             'rfid_uid' => $compartment->rfid_uid,
         ];
 
+        config()->set('services.tms.base_url', 'http://tms.test');
+
+        Http::fake([
+            'tms.test/*' => Http::sequence()
+                ->push(['nopol' => $tanker->nopol], 200)
+                ->push([
+                    'shipment_id' => 'False',
+                    'gate_in_time' => ' ',
+                    'nopol' => ' ',
+                    'status' => ' ',
+                    'nip_supir' => ' ',
+                    'nama_supir' => ' ',
+                    'nip_kernet' => ' ',
+                    'nama_kernet' => ' ',
+                ], 200)
+                ->push([
+                    'shipment_id' => '45728938',
+                    'gate_in_time' => now()->addMinutes(5)->format('Y-m-d H:i:s'),
+                    'nopol' => $tanker->nopol,
+                    'status' => 'O',
+                    'nip_supir' => '',
+                    'nama_supir' => 'Deni Driver',
+                    'nip_kernet' => 'NA',
+                    'nama_kernet' => 'NA',
+                ], 200),
+        ]);
+
         $firstScan = $this->postJson('/api/scan', $payload)->assertOk();
         $firstSessionId = $firstScan->json('data.scan_session_id');
 
         $this->postJson('/api/scan', $payload)
             ->assertStatus(409)
-            ->assertJsonPath('message', 'Sesi scan baru dapat dimulai setelah jeda 5 menit');
-
-        $this->travel(6)->minutes();
+            ->assertJsonPath('message', 'Truk belum gate-in untuk ritase berikutnya');
 
         $secondScan = $this->postJson('/api/scan', $payload)->assertOk();
         $secondSessionId = $secondScan->json('data.scan_session_id');

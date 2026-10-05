@@ -13,6 +13,7 @@ use App\Models\ScanSession;
 use App\Models\Tanker;
 use App\Models\TankerCompartment;
 use App\Models\User;
+use App\Services\TmsService;
 use Filament\Notifications\Notification;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
@@ -250,17 +251,32 @@ class TankerScanController extends Controller
             }
 
             if (! $session) {
-                $recentlyCompletedSession = ScanSession::query()
+                $lastCompletedSession = ScanSession::query()
                     ->where('driver_id', $driver->id)
                     ->where('device_id', $device->id)
                     ->where('tanker_id', $compartment->tanker_id)
                     ->where('status', 'completed')
-                    ->where('completed_at', '>=', now()->subMinutes(5))
                     ->latest('completed_at')
                     ->first();
 
-                if ($recentlyCompletedSession) {
-                    abort(409, 'Sesi scan baru dapat dimulai setelah jeda 5 menit');
+                if ($lastCompletedSession) {
+                    $gateIn = app(TmsService::class)->getGateInStatus($compartment->tanker->nopol);
+
+                    if ($gateIn !== null) {
+                        $gateInTime = is_string($gateIn['gate_in_time'] ?? null)
+                            ? trim($gateIn['gate_in_time'])
+                            : null;
+
+                        $isNewRitase = $gateIn !== null
+                            && ($gateIn['gate_in'] ?? false)
+                            && $gateInTime !== null
+                            && $gateInTime !== ''
+                            && Carbon::parse($gateInTime)->gt($lastCompletedSession->completed_at);
+
+                        if (! $isNewRitase) {
+                            abort(409, 'Truk belum gate-in untuk ritase berikutnya');
+                        }
+                    }
                 }
 
                 $session = ScanSession::create([
@@ -302,6 +318,11 @@ class TankerScanController extends Controller
                     'status' => 'completed',
                     'completed_at' => now(),
                 ]);
+
+                app(TmsService::class)->postCekCompartment(
+                    $session->tanker->nopol,
+                    $session->completed_at
+                );
             }
 
             return $scanLog;
@@ -490,10 +511,10 @@ class TankerScanController extends Controller
                 $q->whereHas('tankerCompartment.tanker', function ($tq) use ($search) {
                     $tq->where('nopol', 'like', "%{$search}%");
                 })
-                ->orWhereHas('tankerCompartment', function ($cq) use ($search) {
-                    $cq->where('rfid_uid', 'like', "%{$search}%");
-                })
-                ->orWhere('note', 'like', "%{$search}%");
+                    ->orWhereHas('tankerCompartment', function ($cq) use ($search) {
+                        $cq->where('rfid_uid', 'like', "%{$search}%");
+                    })
+                    ->orWhere('note', 'like', "%{$search}%");
             });
         }
 
@@ -525,7 +546,7 @@ class TankerScanController extends Controller
                 ->map(fn ($group) => $group->pluck('tanker_compartment_id')->unique()->count());
 
             // Get total compartments per tanker via session (eager loaded)
-            $sessionTankers = \App\Models\ScanSession::with('tanker.compartments:id,tanker_id')
+            $sessionTankers = ScanSession::with('tanker.compartments:id,tanker_id')
                 ->whereIn('id', $sessionIds)
                 ->get()
                 ->keyBy('id');
@@ -638,6 +659,7 @@ class TankerScanController extends Controller
 
             $compartmentDetails = $scanLogs->map(function ($log) use ($compartments) {
                 $comp = $compartments->firstWhere('id', $log->tanker_compartment_id);
+
                 return [
                     'no' => $comp?->compartment_no,
                     'kapasitas_kl' => $comp?->capacity_kl != null ? (float) $comp->capacity_kl : null,

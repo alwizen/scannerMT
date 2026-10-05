@@ -35,4 +35,13 @@ return [
         ],
     ],
 
+    'tms' => [
+        'base_url' => env('TMS_BASE_URL', ''),
+        'timeout' => (int) env('TMS_TIMEOUT', 5),
+        'endpoints' => [
+            'set_cek_compartment' => '/tegal_disit_rpc/set_cek_compartment/',
+            'get_gatein_status' => '/tegal_disit_rpc/get_gatein_status/',
+        ],
+    ],
+
 ];
