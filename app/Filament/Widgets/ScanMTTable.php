@@ -34,7 +34,7 @@ class ScanMTTable extends TableWidget
             $query = ScanLog::query()
                 ->where('driver_id', $record->driver_id)
                 ->whereDate('scanned_at', $record->scan_date)
-                ->whereHas('tankerCompartment', fn($q) => $q->where('tanker_id', $record->tanker_id));
+                ->whereHas('tankerCompartment', fn ($q) => $q->where('tanker_id', $record->tanker_id));
 
             if ($record->scan_session_id) {
                 $query->where('scan_session_id', $record->scan_session_id);
@@ -45,7 +45,7 @@ class ScanMTTable extends TableWidget
             static::$scansCache[$key] = $query
                 ->with(['tankerCompartment', 'parkingLocation'])
                 ->get()
-                ->keyBy(fn($item) => $item->tankerCompartment?->compartment_no);
+                ->keyBy(fn ($item) => $item->tankerCompartment?->compartment_no);
         }
 
         return static::$scansCache[$key];
@@ -54,7 +54,7 @@ class ScanMTTable extends TableWidget
     protected function recordNeedsAction(ScanLog $record): bool
     {
         return $this->getScansForRecord($record)
-            ->contains(fn($scan) => in_array(
+            ->contains(fn ($scan) => in_array(
                 $scan->content_status,
                 ScanSession::ACTION_REQUIRED_CONTENT_STATUSES,
                 true,
@@ -124,28 +124,37 @@ class ScanMTTable extends TableWidget
                 ->sortable(false),
             TextColumn::make('driver.name')
                 ->label('Nama AMT')
-                ->description(fn(ScanLog $record): string => match ($record->driver?->role) {
+                ->description(fn (ScanLog $record): string => match ($record->driver?->role) {
                     'driver' => 'AMT 1',
                     'helper' => 'AMT 2',
                     default => '-',
                 })
                 ->searchable(),
 
+            TextColumn::make('driver_id')
+                ->label('ID AMT')
+                ->badge()
+                ->color('gray')
+                ->searchable(),
+
             TextColumn::make('scan_session_id')
                 ->label('Session ID')
                 ->badge()
                 ->color('warning')
-                ->getStateUsing(fn(ScanLog $record) => $record->scan_session_id ? "#{$record->scan_session_id}" : '-'),
+                ->searchable()
+                ->getStateUsing(fn (ScanLog $record) => $record->scan_session_id ? "#{$record->scan_session_id}" : '-'),
 
             TextColumn::make('nopol')
                 ->label('Nopol MT')
                 ->badge()
                 ->color('info')
-                ->searchable(),
+                ->searchable(
+                    query: fn (Builder $query, string $search) => $query->where('tankers.nopol', 'like', "%{$search}%"),
+                ),
 
             TextColumn::make('capacity_kl')
                 ->label('Kapasitas')
-                ->formatStateUsing(fn($state) => $state ? $state . ' KL' : '-')
+                ->formatStateUsing(fn ($state) => $state ? $state.' KL' : '-')
                 ->sortable(),
 
             TextColumn::make('device.name')
@@ -178,8 +187,8 @@ class ScanMTTable extends TableWidget
             $compNo = $i;
             $columns[] = TextColumn::make("komp_{$compNo}")
                 ->label("Komp {$compNo}")
-                ->when($compNo === 4, fn(TextColumn $column) => $column->toggleable(isToggledHiddenByDefault: true))
-                ->badge(fn(ScanLog $record) => $this->getScansForRecord($record)->has($compNo))
+                ->when($compNo === 4, fn (TextColumn $column) => $column->toggleable(isToggledHiddenByDefault: true))
+                ->badge(fn (ScanLog $record) => $this->getScansForRecord($record)->has($compNo))
                 ->getStateUsing(function (ScanLog $record) use ($compNo) {
                     $compLog = $this->getScansForRecord($record)->get($compNo);
 
@@ -187,18 +196,18 @@ class ScanMTTable extends TableWidget
                         ? Carbon::parse($compLog->scanned_at)->format('H:i:s')
                         : '-';
                 })
-                ->color(fn(ScanLog $record) => $this->getScansForRecord($record)->has($compNo) ? 'success' : 'gray');
+                ->color(fn (ScanLog $record) => $this->getScansForRecord($record)->has($compNo) ? 'success' : 'gray');
 
             $columns[] = TextColumn::make("isi_komp_{$compNo}")
                 ->label("Isi Komp {$compNo}")
-                ->when($compNo === 4, fn(TextColumn $column) => $column->toggleable(isToggledHiddenByDefault: true))
-                ->badge(fn(ScanLog $record) => $this->getScansForRecord($record)->has($compNo))
+                ->when($compNo === 4, fn (TextColumn $column) => $column->toggleable(isToggledHiddenByDefault: true))
+                ->badge(fn (ScanLog $record) => $this->getScansForRecord($record)->has($compNo))
                 ->getStateUsing(function (ScanLog $record) use ($compNo) {
                     $compLog = $this->getScansForRecord($record)->get($compNo);
 
                     return $this->formatContentStatus($compLog?->content_status);
                 })
-                ->color(fn(ScanLog $record) => $this->contentStatusColor(
+                ->color(fn (ScanLog $record) => $this->contentStatusColor(
                     $this->getScansForRecord($record)->get($compNo)?->content_status
                 ));
         }
@@ -213,7 +222,7 @@ class ScanMTTable extends TableWidget
 
                 return ($totalComps > 0 && $scannedCount >= $totalComps) ? 'Complete' : 'Belum Lengkap';
             })
-            ->color(fn(string $state): string => match ($state) {
+            ->color(fn (string $state): string => match ($state) {
                 'Complete' => 'success',
                 'Belum Lengkap' => 'warning',
                 default => 'gray',
@@ -230,7 +239,7 @@ class ScanMTTable extends TableWidget
                 // Sudah ditangani (TL) → status kembali Ready
                 return $this->recordActionHandled($record) ? 'Ready' : 'Butuh Tindakan';
             })
-            ->color(fn(string $state): string => match ($state) {
+            ->color(fn (string $state): string => match ($state) {
                 'Butuh Tindakan' => 'danger',
                 'Ready' => 'success',
                 default => 'gray',
@@ -258,8 +267,8 @@ class ScanMTTable extends TableWidget
                 [$startDate, $endDate] = $this->getFilterDateRange();
 
                 return ScanLog::query()
-                    ->when($startDate, fn(Builder $query) => $query->where('scan_logs.scanned_at', '>=', $startDate))
-                    ->when($endDate, fn(Builder $query) => $query->where('scan_logs.scanned_at', '<=', $endDate))
+                    ->when($startDate, fn (Builder $query) => $query->where('scan_logs.scanned_at', '>=', $startDate))
+                    ->when($endDate, fn (Builder $query) => $query->where('scan_logs.scanned_at', '<=', $endDate))
                     ->join('tanker_compartments', 'scan_logs.tanker_compartment_id', '=', 'tanker_compartments.id')
                     ->join('tankers', 'tanker_compartments.tanker_id', '=', 'tankers.id')
                     ->leftJoin('scan_sessions', 'scan_logs.scan_session_id', '=', 'scan_sessions.id')

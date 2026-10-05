@@ -18,9 +18,9 @@ use Filament\Support\Icons\Heroicon;
 use Filament\Tables\Columns\TextColumn;
 use Filament\Tables\Filters\Filter;
 use Filament\Tables\Table;
+use Illuminate\Contracts\Support\Htmlable;
 use Illuminate\Database\Eloquent\Builder;
-use Illuminate\Support\Carbon;
-use UnitEnum;
+use Illuminate\Database\Eloquent\Model;
 
 class ScanSessionResource extends Resource
 {
@@ -37,6 +37,50 @@ class ScanSessionResource extends Resource
     protected static ?string $navigationLabel = 'Riwayat Tindak Lanjut';
 
     protected static ?int $navigationSort = 2;
+
+    /**
+     * @return array<string>
+     */
+    public static function getGloballySearchableAttributes(): array
+    {
+        return [
+            'driver_id',
+            'tanker_id',
+            'driver.name',
+            'tanker.nopol',
+        ];
+    }
+
+    public static function getGlobalSearchEloquentQuery(): Builder
+    {
+        return ScanSession::query()
+            ->with(['driver', 'tanker', 'device'])
+            ->orderByDesc('started_at');
+    }
+
+    public static function getGlobalSearchResultTitle(Model $record): string|Htmlable
+    {
+        /** @var ScanSession $record */
+        $nopol = $record->tanker?->nopol ?? '-';
+        $driverName = $record->driver?->name ?? '-';
+
+        return "{$nopol} — {$driverName} (#{$record->getKey()})";
+    }
+
+    public static function getGlobalSearchResultDetails(Model $record): array
+    {
+        /** @var ScanSession $record */
+        $total = $record->tanker?->compartments()->count() ?? 0;
+        $scanned = $record->scanLogs()->distinct()->count('tanker_compartment_id');
+
+        return [
+            'ID AMT' => (string) $record->driver_id,
+            'Tanggal' => $record->started_at?->format('d M Y H:i') ?? '-',
+            'Status Ritase' => $record->status === 'completed' ? 'Complete' : ucfirst(str_replace('_', ' ', (string) $record->status)),
+            'Scan' => $total > 0 ? "{$scanned}/{$total}" : '-',
+            'Status TL' => $record->actionStatus(),
+        ];
+    }
 
     public static function getNavigationBadge(): ?string
     {
@@ -71,7 +115,7 @@ class ScanSessionResource extends Resource
                     ->placeholder('-'),
                 TextEntry::make('driver.role')
                     ->label('Role')
-                    ->formatStateUsing(fn($state) => match ($state) {
+                    ->formatStateUsing(fn ($state) => match ($state) {
                         'driver' => 'AMT 1',
                         'helper' => 'AMT 2',
                         default => $state,
@@ -82,7 +126,7 @@ class ScanSessionResource extends Resource
                     ->placeholder('-'),
                 TextEntry::make('tanker.capacity_kl')
                     ->label('Kapasitas')
-                    ->formatStateUsing(fn($state) => $state ? $state . ' KL' : '-')
+                    ->formatStateUsing(fn ($state) => $state ? $state.' KL' : '-')
                     ->placeholder('-'),
                 TextEntry::make('device.name')
                     ->label('Device')
@@ -90,8 +134,8 @@ class ScanSessionResource extends Resource
                 TextEntry::make('status')
                     ->label('Status Ritase')
                     ->badge()
-                    ->formatStateUsing(fn($state) => $state === 'completed' ? 'Complete' : ucfirst(str_replace('_', ' ', $state)))
-                    ->color(fn($state) => $state === 'completed' ? 'success' : 'warning'),
+                    ->formatStateUsing(fn ($state) => $state === 'completed' ? 'Complete' : ucfirst(str_replace('_', ' ', $state)))
+                    ->color(fn ($state) => $state === 'completed' ? 'success' : 'warning'),
                 TextEntry::make('scan_status')
                     ->label('Status Scan')
                     ->state(function (ScanSession $record): string {
@@ -113,9 +157,9 @@ class ScanSessionResource extends Resource
                     }),
                 TextEntry::make('action_status')
                     ->label('Status TL')
-                    ->state(fn(ScanSession $record): string => $record->actionStatus())
+                    ->state(fn (ScanSession $record): string => $record->actionStatus())
                     ->badge()
-                    ->color(fn(string $state): string => match ($state) {
+                    ->color(fn (string $state): string => match ($state) {
                         'Sudah Di TL' => 'info',
                         'Belum Ditangani' => 'danger',
                         default => 'gray',
@@ -146,10 +190,15 @@ class ScanSessionResource extends Resource
                     ->label('Driver')
                     ->searchable()
                     ->sortable(),
+                TextColumn::make('driver_id')
+                    ->label('ID AMT')
+                    ->badge()
+                    ->color('gray')
+                    ->searchable(),
                 TextColumn::make('driver.role')
                     ->label('Role')
                     ->badge()
-                    ->formatStateUsing(fn($state) => match ($state) {
+                    ->formatStateUsing(fn ($state) => match ($state) {
                         'driver' => 'AMT 1',
                         'helper' => 'AMT 2',
                         default => $state,
@@ -162,7 +211,7 @@ class ScanSessionResource extends Resource
                     ->sortable(),
                 TextColumn::make('tanker.capacity_kl')
                     ->label('Kapasitas')
-                    ->formatStateUsing(fn($state) => $state ? $state . ' KL' : '-')
+                    ->formatStateUsing(fn ($state) => $state ? $state.' KL' : '-')
                     ->sortable(),
                 TextColumn::make('device.name')
                     ->label('Device')
@@ -171,8 +220,8 @@ class ScanSessionResource extends Resource
                 TextColumn::make('status')
                     ->label('Ritase')
                     ->badge()
-                    ->formatStateUsing(fn($state) => $state === 'completed' ? 'Complete' : ucfirst(str_replace('_', ' ', $state)))
-                    ->color(fn($state) => $state === 'completed' ? 'success' : 'warning')
+                    ->formatStateUsing(fn ($state) => $state === 'completed' ? 'Complete' : ucfirst(str_replace('_', ' ', $state)))
+                    ->color(fn ($state) => $state === 'completed' ? 'success' : 'warning')
                     ->toggleable(isToggledHiddenByDefault: true),
                 TextColumn::make('scan_status')
                     ->label('Scan')
@@ -196,8 +245,8 @@ class ScanSessionResource extends Resource
                 TextColumn::make('action_status')
                     ->label('Status TL')
                     ->badge()
-                    ->state(fn(ScanSession $record): string => $record->actionStatus())
-                    ->color(fn(string $state): string => match ($state) {
+                    ->state(fn (ScanSession $record): string => $record->actionStatus())
+                    ->color(fn (string $state): string => match ($state) {
                         'Sudah Di TL' => 'info',
                         'Belum Ditangani' => 'danger',
                         default => 'gray',
@@ -210,7 +259,7 @@ class ScanSessionResource extends Resource
                 TextColumn::make('action_note')
                     ->label('Catatan Tindakan')
                     ->limit(40)
-                    ->tooltip(fn(ScanSession $record): ?string => $record->action_note)
+                    ->tooltip(fn (ScanSession $record): ?string => $record->action_note)
                     ->placeholder('-'),
 
                 TextColumn::make('handledBy.name')
@@ -231,11 +280,11 @@ class ScanSessionResource extends Resource
                         return $query
                             ->when(
                                 $data['from'] ?? null,
-                                fn(Builder $query, $date): Builder => $query->whereDate('started_at', '>=', $date),
+                                fn (Builder $query, $date): Builder => $query->whereDate('started_at', '>=', $date),
                             )
                             ->when(
                                 $data['until'] ?? null,
-                                fn(Builder $query, $date): Builder => $query->whereDate('started_at', '<=', $date),
+                                fn (Builder $query, $date): Builder => $query->whereDate('started_at', '<=', $date),
                             );
                     }),
                 Filter::make('action_status')
@@ -261,30 +310,30 @@ class ScanSessionResource extends Resource
                     ->schema([
                         Select::make('value')
                             ->label('Driver')
-                            ->options(fn(): array => Driver::query()
+                            ->options(fn (): array => Driver::query()
                                 ->orderBy('name')
                                 ->pluck('name', 'id')
                                 ->all())
                             ->searchable(),
                     ])
-                    ->query(fn(Builder $query, array $data): Builder => $query->when(
+                    ->query(fn (Builder $query, array $data): Builder => $query->when(
                         $data['value'] ?? null,
-                        fn(Builder $query, $driverId): Builder => $query->where('driver_id', $driverId),
+                        fn (Builder $query, $driverId): Builder => $query->where('driver_id', $driverId),
                     )),
                 Filter::make('tanker_id')
                     ->label('Nopol MT')
                     ->schema([
                         Select::make('value')
                             ->label('Tanker')
-                            ->options(fn(): array => Tanker::query()
+                            ->options(fn (): array => Tanker::query()
                                 ->orderBy('nopol')
                                 ->pluck('nopol', 'id')
                                 ->all())
                             ->searchable(),
                     ])
-                    ->query(fn(Builder $query, array $data): Builder => $query->when(
+                    ->query(fn (Builder $query, array $data): Builder => $query->when(
                         $data['value'] ?? null,
-                        fn(Builder $query, $tankerId): Builder => $query->where('tanker_id', $tankerId),
+                        fn (Builder $query, $tankerId): Builder => $query->where('tanker_id', $tankerId),
                     )),
             ])
             ->actions([
