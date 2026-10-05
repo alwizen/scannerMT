@@ -50,6 +50,12 @@ class TmsService
                 return false;
             }
 
+            Log::info('TMS set_cek_compartment berhasil', [
+                'nopol' => $nopol,
+                'jam_cek_comp' => $jamCekComp,
+                'response_nopol' => $result,
+            ]);
+
             return true;
         } catch (Throwable $e) {
             Log::warning('TMS set_cek_compartment error', [
@@ -107,11 +113,21 @@ class TmsService
             }
 
             if ((string) $shipmentId === 'False') {
+                Log::info('TMS get_gatein_status: truk belum gate-in', [
+                    'nopol' => $nopol,
+                ]);
+
                 return [
                     'gate_in' => false,
                     'raw' => $data,
                 ];
             }
+
+            Log::info('TMS get_gatein_status berhasil', [
+                'nopol' => $nopol,
+                'shipment_id' => (string) $shipmentId,
+                'gate_in_time' => $data['gate_in_time'] ?? null,
+            ]);
 
             return [
                 'gate_in' => true,
